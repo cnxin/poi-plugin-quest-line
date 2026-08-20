@@ -3,10 +3,15 @@
  *
  * 布局由 lib/chain-layout.es 计算（纯函数，已单测）。
  * 焦点任务居中，前置在上、后继在下，点击任意节点可切换焦点。
+ *
+ * 分支过多的处理（实测 B6 有 28 个直接后继，不限制时单层可达 87 节点、宽 10976px）：
+ *   1. 每层最多显示 MAX_PER_LAYER 个，其余折叠为「+N」块，点击展开该层
+ *   2. 画布可缩放，默认自动适应面板宽度
+ *   3. 仍超出时可横向滚动
  */
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import styled from 'styled-components'
-import { Button, Callout } from '@blueprintjs/core'
+import { Button, ButtonGroup, Callout } from '@blueprintjs/core'
 import { getDb } from '../lib/quest-db.es'
 import { computeChainLayout } from '../lib/chain-layout.es'
 import { STATUS } from '../redux/selectors.es'
@@ -27,11 +32,12 @@ const Hint = styled.span`
   font-size: 11px;
   opacity: 0.55;
   flex: 1;
+  min-width: 120px;
 `
 
 const Canvas = styled.div`
   overflow: auto;
-  max-height: 420px;
+  max-height: 430px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.16);
@@ -42,6 +48,13 @@ const NodeG = styled.g`
   &:hover rect {
     stroke-width: 2;
     filter: brightness(1.25);
+  }
+`
+
+const MoreG = styled.g`
+  cursor: pointer;
+  &:hover rect {
+    filter: brightness(1.4);
   }
 `
 
@@ -56,7 +69,6 @@ const CAT_COLOR = {
   其他: '#8a8a8a',
 }
 
-/** 状态 -> 节点描边色 */
 const STATUS_STROKE = {
   [STATUS.COMPLETED]: '#3dcc91',
   [STATUS.IN_PROGRESS]: '#48aff0',
@@ -78,32 +90,64 @@ function edgePath(e) {
 }
 
 const DEFAULT_DEPTH = 2
+const ZOOM_STEPS = [0.5, 0.75, 1]
 
 export const QuestChain = ({ questId, status = {}, onSelect }) => {
   const db = useMemo(() => getDb(), [])
   const [upDepth, setUpDepth] = useState(DEFAULT_DEPTH)
   const [downDepth, setDownDepth] = useState(DEFAULT_DEPTH)
+  const [expanded, setExpanded] = useState(() => new Set())
   const [hover, setHover] = useState(null)
+  const [zoom, setZoom] = useState(null) // null = 自动适应宽度
+  const boxRef = useRef(null)
+  const [boxW, setBoxW] = useState(0)
 
-  // 切换任务时重置展开层数
+  // 切换任务时重置视图状态
   useEffect(() => {
     setUpDepth(DEFAULT_DEPTH)
     setDownDepth(DEFAULT_DEPTH)
+    setExpanded(new Set())
+    setZoom(null)
   }, [questId])
 
+  // 观测容器宽度以计算自动缩放
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return undefined
+    const update = () => setBoxW(el.clientWidth)
+    update()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const layout = useMemo(
-    () => computeChainLayout(questId, { upDepth, downDepth }),
-    [questId, upDepth, downDepth],
+    () => computeChainLayout(questId, { upDepth, downDepth, expanded }),
+    [questId, upDepth, downDepth, expanded],
   )
 
-  if (!layout) return null
-  const { nodes, edges, width, height, moreUp, moreDown, upCount, downCount } = layout
+  const toggleLayer = useCallback((key) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
-  if (nodes.length === 1) {
+  if (!layout) return null
+  const { nodes, edges, moreChips, width, height, moreUp, moreDown, upCount, downCount, hiddenCount } =
+    layout
+
+  if (nodes.length === 1 && !moreChips.length) {
     return <Callout icon="info-sign">该任务是独立任务，无前置也无后续。</Callout>
   }
 
-  // 高亮：悬停节点及其直接关联的边
+  // 自动缩放：宽度超出容器时按比例缩小，但不小于 0.4 以免看不清
+  const autoScale = boxW > 0 && width > boxW ? Math.max(0.4, boxW / width) : 1
+  const scale = zoom ?? autoScale
+
   const isLit = (e) => hover != null && (e.from === hover || e.to === hover)
 
   return (
@@ -127,15 +171,34 @@ export const QuestChain = ({ questId, status = {}, onSelect }) => {
         >
           展开后续
         </Button>
+        <ButtonGroup minimal>
+          <Button
+            small
+            active={zoom === null}
+            onClick={() => setZoom(null)}
+            title="自动适应宽度"
+          >
+            适应
+          </Button>
+          {ZOOM_STEPS.map((z) => (
+            <Button key={z} small active={zoom === z} onClick={() => setZoom(z)}>
+              {z * 100}%
+            </Button>
+          ))}
+        </ButtonGroup>
         <Hint>
-          前置 {upCount} ｜ 后续 {downCount} ｜ 第 {db.quests[questId].depth + 1} 级
-          {(moreUp || moreDown) && ' ｜ 还有未展开的层级'}
+          前置 {upCount} ｜ 后续 {downCount}
+          {hiddenCount > 0 && ` ｜ 已折叠 ${hiddenCount} 个（点 +N 展开）`}
         </Hint>
       </Toolbar>
 
-      <Canvas>
-        <svg width={width} height={height} style={{ display: 'block' }}>
-          {/* 连线先画，压在节点下方 */}
+      <Canvas ref={boxRef}>
+        <svg
+          width={width * scale}
+          height={height * scale}
+          viewBox={`0 0 ${width} ${height}`}
+          style={{ display: 'block' }}
+        >
           <g>
             {edges.map((e) => (
               <path
@@ -163,9 +226,7 @@ export const QuestChain = ({ questId, status = {}, onSelect }) => {
                   onMouseEnter={() => setHover(n.id)}
                   onMouseLeave={() => setHover(null)}
                 >
-                  <title>
-                    {`[${q.wikiId || q.id}] ${q.name}\n${q.category} / ${q.period}`}
-                  </title>
+                  <title>{`[${q.wikiId || q.id}] ${q.name}\n${q.category} / ${q.period}`}</title>
                   <rect
                     x={n.x}
                     y={n.y}
@@ -177,29 +238,44 @@ export const QuestChain = ({ questId, status = {}, onSelect }) => {
                     strokeWidth={n.isFocus ? 2 : 1}
                     opacity={done ? 0.65 : 1}
                   />
-                  {/* 左侧类别色条 */}
                   <rect x={n.x} y={n.y} width={3} height={n.h} rx={1.5} fill={cat} />
-                  <text
-                    x={n.x + 8}
-                    y={n.y + 11}
-                    fontSize={9}
-                    fill={cat}
-                    fontFamily="monospace"
-                  >
+                  <text x={n.x + 8} y={n.y + 11} fontSize={9} fill={cat} fontFamily="monospace">
                     {fitToWidth(q.wikiId || String(q.id), n.w)}
                   </text>
-                  <text
-                    x={n.x + 8}
-                    y={n.y + 21}
-                    fontSize={10}
-                    fill="currentColor"
-                    opacity={0.85}
-                  >
+                  <text x={n.x + 8} y={n.y + 21} fontSize={10} fill="currentColor" opacity={0.85}>
                     {fitToWidth(q.name, n.w)}
                   </text>
                 </NodeG>
               )
             })}
+          </g>
+
+          {/* 每层折叠的「+N」块 */}
+          <g>
+            {moreChips.map((c) => (
+              <MoreG key={c.key} onClick={() => toggleLayer(c.key)}>
+                <title>{`还有 ${c.count} 个任务，点击展开本层`}</title>
+                <rect
+                  x={c.x}
+                  y={c.y}
+                  width={c.w}
+                  height={c.h}
+                  rx={3}
+                  fill="rgba(72,175,240,0.14)"
+                  stroke="rgba(72,175,240,0.5)"
+                  strokeDasharray="3,2"
+                />
+                <text
+                  x={c.x + c.w / 2}
+                  y={c.y + 17}
+                  fontSize={11}
+                  fill="#48aff0"
+                  textAnchor="middle"
+                >
+                  +{c.count}
+                </text>
+              </MoreG>
+            ))}
           </g>
         </svg>
       </Canvas>
