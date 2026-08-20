@@ -586,6 +586,46 @@ poi 的 `babel-register.config.js` 设了 **`cache: false`**，所以每次启�
 测试全绿但截图一看就露馅 —— 已在 `data-update.es` 同步该处理，并加回归断言。
 同时放宽正则以覆盖「(年任/2月)」这类带月份限定的变体（剥离数 116 → 138）。
 
+### M5 发布准备 ✅ **已完成（2026-08-21）**
+
+**1. 画布居中**（画布小于视口时原先靠左且拖不动）
+```css
+Canvas { display: flex; }
+Canvas > svg { margin: auto; }
+```
+⚠ **必须用子元素 `margin:auto`，不能用 `justify-content:center`** ——
+后者在内容超出容器时会把溢出部分裁在左侧且**无法滚动到**，是 flex 的经典陷阱。
+
+**2. 错误边界**（`views/ErrorBoundary.es`）
+- 组件抛错时显示可读提示而非整个 tab 白屏，错误同时打到 `window.error` 便于反馈
+- 提供两条自救路径：「重试」（清 db 缓存重渲染）、
+  「清除已下载数据」（删除 override 文件回到随包版本）
+- `quest-db.es` 对损坏的 override 文件降级：捕获异常 → 回退随包数据
+- 入口用 `reactClass`/`settingsClass` 包裹
+- 实测：覆盖文件写入非法 JSON 后仍能正常加载 774 个任务
+
+**3. 发布元数据**：补齐 `repository` / `homepage` / `bugs` /
+`poiPlugin.earliestCompatibleMain: "11.0.0"`。npm 包名 `poi-plugin-quest-line` **未被占用**。
+
+**4. 安装方式**（README 已写全四种）
+
+| 方式 | 命令 |
+|---|---|
+| poi 插件市场 | 发布后搜 `quest-line`（需 PR 到 poi 的 `assets/data/plugin.json` 才进官方列表） |
+| npm | `cd <poi插件目录> && npm install poi-plugin-quest-line` |
+| 本地 tarball | `npm install /path/to/poi-plugin-quest-line-0.1.0.tgz` |
+| 直接放源码 | 复制到 `<poi插件目录>/node_modules/poi-plugin-quest-line/` |
+
+poi 插件目录：Windows `%AppData%\poi\plugins`、
+macOS `~/Library/Application Support/poi/plugins`、Linux `~/.config/poi/plugins`。
+
+**实测 `npm pack`**：200KB / 27 文件，在干净目录安装验证通过，
+不含 `data/`（3.1MB 构建输入）、`scripts/`、`node_modules/`。
+
+**新增审计脚本** `D:\Temp\poi-asar\audit-publish.js`（元数据/打包内容/i18n/合规）
+与 `verify-resilience.js`（错误边界 + 数据损坏降级）。
+
+
 
 
 
