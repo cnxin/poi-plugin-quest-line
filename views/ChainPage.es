@@ -11,6 +11,10 @@ import QuestChain from './QuestChain.es'
 const Root = styled.div`
   display: flex;
   flex-direction: column;
+  /* flex:1 + min-width:0 缺一不可：否则宽画布会把本容器整个撑大、
+     超出父级后被 App 的 overflow:hidden 裁掉，Canvas 永远不产生滚动条（也就拖不动） */
+  flex: 1;
+  min-width: 0;
   height: 100%;
   min-height: 0;
   padding: 8px;
@@ -120,6 +124,7 @@ export const ChainPage = ({ questId, status = {}, onSelect, onBack }) => {
         fill
         maxPerLayer={PAGE_MAX_PER_LAYER}
         initialDepth={3}
+        defaultZoom={1}
       />
     </Root>
   )

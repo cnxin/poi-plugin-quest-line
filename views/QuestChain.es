@@ -13,12 +13,14 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import styled from 'styled-components'
 import { Button, ButtonGroup, Callout } from '@blueprintjs/core'
 import { getDb } from '../lib/quest-db.es'
-import { computeChainLayout } from '../lib/chain-layout.es'
+import { computeChainLayout, computeFocusScroll } from '../lib/chain-layout.es'
 import { STATUS } from '../redux/selectors.es'
 
 const Wrap = styled.div`
   font-size: 12px;
-  ${(p) => (p.$fill ? 'display:flex; flex-direction:column; height:100%; min-height:0;' : '')}
+  min-width: 0;
+  ${(p) =>
+    p.$fill ? 'display:flex; flex-direction:column; flex:1; height:100%; min-height:0;' : ''}
 `
 
 const Toolbar = styled.div`
@@ -38,6 +40,7 @@ const Hint = styled.span`
 
 const Canvas = styled.div`
   overflow: auto;
+  min-width: 0;
   ${(p) => (p.$fill ? 'flex: 1; min-height: 0;' : 'max-height: 430px;')}
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 3px;
@@ -104,13 +107,16 @@ export const QuestChain = ({
   /** 每层最多显示的节点数；独立页面空间大可以放宽 */
   maxPerLayer,
   initialDepth = DEFAULT_DEPTH,
+  /** 初始缩放；null = 自动适应宽度。独立页面传 1，因为「适应」在大图上会缩到
+   *  0.4~0.5 倍导致字看不清，而该页已支持拖动，用原尺寸配合平移更实用 */
+  defaultZoom = null,
 }) => {
   const db = useMemo(() => getDb(), [])
   const [upDepth, setUpDepth] = useState(initialDepth)
   const [downDepth, setDownDepth] = useState(initialDepth)
   const [expanded, setExpanded] = useState(() => new Set())
   const [hover, setHover] = useState(null)
-  const [zoom, setZoom] = useState(null) // null = 自动适应宽度
+  const [zoom, setZoom] = useState(defaultZoom)
   const [panning, setPanning] = useState(false)
   const boxRef = useRef(null)
   const panRef = useRef(null)
@@ -121,8 +127,8 @@ export const QuestChain = ({
     setUpDepth(initialDepth)
     setDownDepth(initialDepth)
     setExpanded(new Set())
-    setZoom(null)
-  }, [questId, initialDepth])
+    setZoom(defaultZoom)
+  }, [questId, initialDepth, defaultZoom])
 
   // 观测容器宽度以计算自动缩放
   useEffect(() => {
@@ -174,6 +180,33 @@ export const QuestChain = ({
     [questId, upDepth, downDepth, expanded, maxPerLayer],
   )
 
+  // 自动缩放：宽度超出容器时按比例缩小，但不小于 0.4 以免看不清
+  const autoScale = boxW > 0 && layout && layout.width > boxW
+    ? Math.max(0.4, boxW / layout.width)
+    : 1
+  const scale = zoom ?? autoScale
+
+  /**
+   * 把焦点节点滚到视野中央。
+   * 焦点未必在画布中心（如无前置时它在最上层），不滚动的话会被挤到边缘看不见。
+   */
+  const focusNode = layout?.nodes.find((n) => n.isFocus)
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el || !focusNode || !layout) return
+    const { left, top } = computeFocusScroll(
+      focusNode,
+      scale,
+      el.clientWidth,
+      el.clientHeight,
+      layout.width,
+      layout.height,
+    )
+    el.scrollLeft = left
+    el.scrollTop = top
+    // 依赖焦点坐标与缩放：切换任务、展开层级、改缩放后都重新居中
+  }, [focusNode?.id, focusNode?.x, focusNode?.y, scale, boxW, layout?.width, layout?.height])
+
   const toggleLayer = useCallback((key) => {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -192,9 +225,6 @@ export const QuestChain = ({
   }
 
   // 自动缩放：宽度超出容器时按比例缩小，但不小于 0.4 以免看不清
-  const autoScale = boxW > 0 && width > boxW ? Math.max(0.4, boxW / width) : 1
-  const scale = zoom ?? autoScale
-
   const isLit = (e) => hover != null && (e.from === hover || e.to === hover)
 
   return (

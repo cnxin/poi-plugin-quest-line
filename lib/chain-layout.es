@@ -85,8 +85,27 @@ function orderByBarycenter(layer, refIndex, quests, dir) {
 }
 
 /**
+ * 计算让焦点节点居于视野中央所需的滚动位置。
+ * 焦点未必在画布中心（例如无前置时它在最上层、无后继时在最下层），
+ * 不主动滚动的话会被挤到边缘看不见。
+ *
+ * @returns {left, top} 已按内容边界夹取，不会出现负值或超滚
+ */
+export function computeFocusScroll(focusNode, scale, clientW, clientH, contentW, contentH) {
+  if (!focusNode) return { left: 0, top: 0 }
+  const cx = (focusNode.x + focusNode.w / 2) * scale
+  const cy = (focusNode.y + focusNode.h / 2) * scale
+  const maxLeft = Math.max(0, contentW * scale - clientW)
+  const maxTop = Math.max(0, contentH * scale - clientH)
+  return {
+    left: Math.min(maxLeft, Math.max(0, cx - clientW / 2)),
+    top: Math.min(maxTop, Math.max(0, cy - clientH / 2)),
+  }
+}
+
+/**
  * 计算布局。
- * @returns {nodes, edges, width, height, moreUp, moreDown, upCount, downCount}
+ * @returns {nodes, edges, moreChips, width, height, moreUp, moreDown, upCount, downCount, hiddenCount}
  */
 export function computeChainLayout(focusId, opts = {}) {
   const {
