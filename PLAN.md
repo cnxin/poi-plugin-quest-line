@@ -519,6 +519,34 @@ poi 的 `babel-register.config.js` 设了 **`cache: false`**，所以每次启�
 **效果**：B6 在独立页展开 3 层后继，画布 1590x326，每层 12 个节点字迹清晰，
 末尾 `+16`/`+22`/`+12` 可继续展开。同样内容在原 400px 面板里完全塞不下。
 
+### M3.3 修复拖动失效与焦点出屏 ✅ **已修（2026-08-21）**
+
+用户实测截图暴露两个问题，**都是 SSR 测试测不出来的**。
+
+**1. 横向拖不动 —— 根因是 flex 尺寸，不是拖动逻辑。**
+`ChainPage` 的 Root 作为 flex 子项缺少 `flex:1` 与 `min-width:0`，
+默认 `flex: 0 1 auto` 下宽度由内容决定 → 宽画布把容器整个撑大 → 超出父级后
+被 App Root 的 `overflow:hidden` 裁掉 → **Canvas 从未产生可滚动区域**，自然拖不动。
+修法：`Root` 加 `flex:1; min-width:0`，`Wrap`/`Canvas` 加 `min-width:0`。
+
+> ⚠ **flex 容器内放可滚动子元素时，`min-width:0` / `min-height:0` 缺一不可。**
+> flex 子项默认 `min-width:auto`，不会收缩到小于内容宽度，overflow 就永远不触发。
+
+**2. 焦点节点被挤出视野。** 焦点未必在画布中心（无前置时在最上层、无后继时在最下层）。
+新增纯函数 `computeFocusScroll(focusNode, scale, clientW, clientH, contentW, contentH)`，
+在布局/缩放变化时把焦点滚到视野中央，并按内容边界夹取避免超滚。
+实测 C1：焦点 x=711、视口宽 780，滚动 405 后居中；此前 scrollLeft 停在 0，焦点贴在右边缘。
+
+**3. 独立页默认缩放改为 100%。** 「适应」在大图上会缩到 0.4~0.5 倍导致字看不清，
+而该页已支持拖动，用原尺寸配合平移更实用。新增 `defaultZoom` 属性。
+
+**验证手段补强：** 新增 `D:\Temp\poi-asar\export-live.js`
+—— 用 `ServerStyleSheet` 收集 styled-components 真实 CSS，套进模拟 poi 的
+固定尺寸 + `overflow:hidden` 容器，输出 HTML 后用 Edge headless 截图。
+**SSR 字符串断言测不出 flex/overflow 布局问题，本次 bug 正是这样漏掉的。**
+（静态页不跑 React effect，脚本里用同样的 `computeFocusScroll` 复现滚动位置。）
+
+
 
 
 
