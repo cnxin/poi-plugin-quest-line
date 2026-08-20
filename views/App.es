@@ -16,6 +16,8 @@ import { rewardSearchText } from '../lib/reward.es'
 import { questStatusSelector, STATUS } from '../redux/selectors.es'
 import RewardPanel from './RewardPanel.es'
 import QuestChain from './QuestChain.es'
+import RewardLookup from './RewardLookup.es'
+import FleetReqPanel from './FleetReqPanel.es'
 
 const Root = styled.div`
   display: flex;
@@ -194,8 +196,31 @@ const ROW_HEIGHT = 26
 const OVERSCAN = 12
 const ALL = '__all__'
 
+const MODE = { BROWSE: 'browse', REWARD: 'reward' }
+
+const ModeTabs = styled.div`
+  display: flex;
+  gap: 2px;
+  margin-bottom: 5px;
+`
+
+const ModeTab = styled.button`
+  border: none;
+  background: none;
+  border-bottom: 2px solid ${(p) => (p.$on ? '#48aff0' : 'transparent')};
+  color: inherit;
+  opacity: ${(p) => (p.$on ? 1 : 0.5)};
+  font-size: 12px;
+  padding: 3px 10px 4px;
+  cursor: pointer;
+  &:hover {
+    opacity: 1;
+  }
+`
+
 export const App = () => {
   const db = useMemo(() => getDb(), [])
+  const [mode, setMode] = useState(MODE.BROWSE)
   const [keyword, setKeyword] = useState('')
   const [selected, setSelected] = useState(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -256,38 +281,64 @@ export const App = () => {
   return (
     <Root>
       <TopBar>
-        <InputGroup
-          fill
-          small
-          leftIcon="search"
-          placeholder="搜索任务名 / wiki编号 / 说明 / 奖励（如：螺丝）"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          rightElement={
-            keyword ? (
-              <Button minimal small icon="cross" onClick={() => setKeyword('')} />
-            ) : undefined
-          }
-        />
-        <FilterLine>
-          <FilterLabel>类别</FilterLabel>
-          {chip('全部', ALL, category, setCategory, 'cat-all')}
-          {categories.map((c) => chip(c, c, category, setCategory))}
-        </FilterLine>
-        <FilterLine>
-          <FilterLabel>周期</FilterLabel>
-          {chip('全部', ALL, period, setPeriod, 'per-all')}
-          {periods.map((p) => chip(p, p, period, setPeriod))}
-        </FilterLine>
-        <FilterLine>
-          <FilterLabel>状态</FilterLabel>
-          {chip('全部', ALL, statusFilter, setStatusFilter, 'st-all')}
-          {[STATUS.AVAILABLE, STATUS.IN_PROGRESS, STATUS.COMPLETED, STATUS.LOCKED].map((s) =>
-            chip(STATUS_LABEL[s], s, statusFilter, setStatusFilter),
-          )}
-        </FilterLine>
+        <ModeTabs>
+          <ModeTab $on={mode === MODE.BROWSE} onClick={() => setMode(MODE.BROWSE)}>
+            任务浏览
+          </ModeTab>
+          <ModeTab $on={mode === MODE.REWARD} onClick={() => setMode(MODE.REWARD)}>
+            按奖励查任务
+          </ModeTab>
+        </ModeTabs>
+
+        {mode === MODE.BROWSE && (
+          <>
+            <InputGroup
+              fill
+              small
+              leftIcon="search"
+              placeholder="搜索任务名 / wiki编号 / 说明 / 奖励（如：螺丝）"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              rightElement={
+                keyword ? (
+                  <Button minimal small icon="cross" onClick={() => setKeyword('')} />
+                ) : undefined
+              }
+            />
+            <FilterLine>
+              <FilterLabel>类别</FilterLabel>
+              {chip('全部', ALL, category, setCategory, 'cat-all')}
+              {categories.map((c) => chip(c, c, category, setCategory))}
+            </FilterLine>
+            <FilterLine>
+              <FilterLabel>周期</FilterLabel>
+              {chip('全部', ALL, period, setPeriod, 'per-all')}
+              {periods.map((p) => chip(p, p, period, setPeriod))}
+            </FilterLine>
+            <FilterLine>
+              <FilterLabel>状态</FilterLabel>
+              {chip('全部', ALL, statusFilter, setStatusFilter, 'st-all')}
+              {[STATUS.AVAILABLE, STATUS.IN_PROGRESS, STATUS.COMPLETED, STATUS.LOCKED].map((s) =>
+                chip(STATUS_LABEL[s], s, statusFilter, setStatusFilter),
+              )}
+            </FilterLine>
+          </>
+        )}
       </TopBar>
 
+      {mode === MODE.REWARD && (
+        <Body>
+          <RewardLookup
+            status={status}
+            onSelectQuest={(id) => {
+              setSelected(id)
+              setMode(MODE.BROWSE)
+            }}
+          />
+        </Body>
+      )}
+
+      {mode === MODE.BROWSE && (
       <Body>
         <Left>
           <Counter>
@@ -371,12 +422,20 @@ export const App = () => {
               <Section>奖励</Section>
               <RewardPanel quest={quest} />
 
+              {quest.fleetReq?.length > 0 && (
+                <>
+                  <Section>编成要求</Section>
+                  <FleetReqPanel quest={quest} />
+                </>
+              )}
+
               <Section>任务线</Section>
               <QuestChain questId={quest.id} status={status} onSelect={setSelected} />
             </>
           )}
         </Right>
       </Body>
+      )}
     </Root>
   )
 }
