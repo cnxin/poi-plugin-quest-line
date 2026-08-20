@@ -49,11 +49,16 @@ const Canvas = styled.div`
   user-select: ${(p) => (p.$panning ? 'none' : 'auto')};
 
   /* 画布小于视口时居中显示。
-     必须用子元素 margin:auto 而非 justify-content:center ——
-     后者在内容超出容器时会把溢出部分裁在左侧且无法滚动到。 */
+     - 用子元素 margin:auto 而非 justify-content:center：
+       后者在内容超出容器时会把溢出部分裁在左侧且无法滚动到。
+       margin:auto 在可用空间为负时按规范解析为 0，因此溢出时能正常滚到最左。
+     - flex-shrink:0 不可省：SVG 作为 flex 子项默认会被压缩到容器宽度，
+       而 viewBox 会把图形映射到元素实际尺寸 —— 结果就是放大档位全部失效
+       （100% 与 150% 渲染结果相同）且宽图永远被缩小。 */
   display: flex;
   & > svg {
     margin: auto;
+    flex-shrink: 0;
   }
 `
 
