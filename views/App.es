@@ -1,0 +1,384 @@
+/**
+ * 主面板布局：
+ *   ┌──────────────────────────────────────────┐
+ *   │ 搜索框                        [统计]      │
+ *   │ 类别: ○ ○ ○   周期: ○ ○   状态: ○ ○      │  ← 带标签的紧凑筛选行
+ *   ├─────────────┬────────────────────────────┤
+ *   │ 任务列表     │ 详情（说明/奖励/任务线）    │
+ *   └─────────────┴────────────────────────────┘
+ */
+import React, { useMemo, useState, useCallback } from 'react'
+import { useSelector } from 'react-redux'
+import styled from 'styled-components'
+import { InputGroup, Tag, Button, Callout, Icon } from '@blueprintjs/core'
+import { getDb } from '../lib/quest-db.es'
+import { rewardSearchText } from '../lib/reward.es'
+import { questStatusSelector, STATUS } from '../redux/selectors.es'
+import RewardPanel from './RewardPanel.es'
+import QuestChain from './QuestChain.es'
+
+const Root = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  font-size: 12px;
+`
+
+const TopBar = styled.div`
+  flex: 0 0 auto;
+  padding: 6px 8px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+`
+
+const FilterLine = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+`
+
+const FilterLabel = styled.span`
+  font-size: 10px;
+  opacity: 0.45;
+  flex: 0 0 auto;
+  width: 30px;
+  letter-spacing: 1px;
+`
+
+/** 紧凑筛选片，比 Button 更省空间 */
+const Chip = styled.button`
+  border: none;
+  border-radius: 3px;
+  padding: 2px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  background: ${(p) => (p.$on ? 'rgba(72,175,240,0.85)' : 'rgba(255,255,255,0.07)')};
+  color: ${(p) => (p.$on ? '#fff' : 'inherit')};
+  opacity: ${(p) => (p.$on ? 1 : 0.75)};
+  transition: background 0.12s;
+  &:hover {
+    background: ${(p) => (p.$on ? 'rgba(72,175,240,0.95)' : 'rgba(255,255,255,0.14)')};
+    opacity: 1;
+  }
+`
+
+const Body = styled.div`
+  flex: 1;
+  display: flex;
+  min-height: 0;
+`
+
+const Left = styled.div`
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+`
+
+const Right = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+  padding: 10px 12px;
+`
+
+const ListScroll = styled.div`
+  flex: 1;
+  overflow-y: auto;
+`
+
+const Row = styled.div`
+  padding: 0 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-left: 2px solid ${(p) => p.$accent};
+  background: ${(p) => (p.$active ? 'rgba(72,175,240,0.16)' : 'transparent')};
+  &:hover {
+    background: ${(p) => (p.$active ? 'rgba(72,175,240,0.2)' : 'rgba(255,255,255,0.05)')};
+  }
+`
+
+const WikiId = styled.span`
+  font-family: monospace;
+  font-size: 10px;
+  opacity: 0.55;
+  flex: 0 0 auto;
+  width: 48px;
+`
+
+const RowName = styled.span`
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+`
+
+const Counter = styled.div`
+  font-size: 10px;
+  opacity: 0.45;
+  padding: 3px 8px;
+`
+
+const Title = styled.div`
+  font-size: 15px;
+  font-weight: 600;
+  margin: 6px 0 2px;
+  line-height: 1.35;
+`
+
+const SubTitle = styled.div`
+  font-size: 11px;
+  opacity: 0.4;
+`
+
+const Section = styled.div`
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.55;
+  margin: 14px 0 6px;
+  letter-spacing: 1px;
+`
+
+const Desc = styled.div`
+  font-size: 12.5px;
+  line-height: 1.75;
+  opacity: 0.9;
+`
+
+const Empty = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  opacity: 0.4;
+  gap: 10px;
+  font-size: 12px;
+`
+
+/** 类别配色（也用于列表行左侧色条） */
+const CAT_COLOR = {
+  编成: '#48aff0',
+  出击: '#ff7373',
+  演习: '#3dcc91',
+  远征: '#ffb366',
+  '补给/入渠': '#a3a3a3',
+  工厂: '#c99bf5',
+  改装: '#ffd966',
+  其他: '#8a8a8a',
+}
+/** 游戏内的类别顺序，「其他」永远垫底 */
+const CAT_ORDER = ['编成', '出击', '演习', '远征', '补给/入渠', '工厂', '改装', '其他']
+const PERIOD_ORDER = ['单次', '日常', '周常', '月常', '季常', '年常', '特殊']
+
+const STATUS_INTENT = {
+  [STATUS.COMPLETED]: 'success',
+  [STATUS.IN_PROGRESS]: 'primary',
+  [STATUS.AVAILABLE]: 'warning',
+  [STATUS.LOCKED]: 'none',
+}
+const STATUS_LABEL = {
+  [STATUS.COMPLETED]: '已完成',
+  [STATUS.IN_PROGRESS]: '进行中',
+  [STATUS.AVAILABLE]: '可接取',
+  [STATUS.LOCKED]: '未解锁',
+}
+
+const ROW_HEIGHT = 26
+const OVERSCAN = 12
+const ALL = '__all__'
+
+export const App = () => {
+  const db = useMemo(() => getDb(), [])
+  const [keyword, setKeyword] = useState('')
+  const [selected, setSelected] = useState(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportH, setViewportH] = useState(600)
+  const [category, setCategory] = useState(ALL)
+  const [period, setPeriod] = useState(ALL)
+  const [statusFilter, setStatusFilter] = useState(ALL)
+
+  const status = useSelector(questStatusSelector)
+
+  const categories = useMemo(
+    () => CAT_ORDER.filter((c) => (db.meta?.categories ?? []).includes(c)),
+    [db],
+  )
+  const periods = useMemo(
+    () => PERIOD_ORDER.filter((p) => (db.meta?.periods ?? []).includes(p)),
+    [db],
+  )
+
+  const searchIndex = useMemo(() => {
+    const idx = {}
+    for (const id of db.ids) {
+      const q = db.quests[id]
+      idx[id] =
+        `${q.wikiId} ${q.name} ${q.nameJa ?? ''} ${q.desc} ${rewardSearchText(q)}`.toLowerCase()
+    }
+    return idx
+  }, [db])
+
+  const visibleIds = useMemo(() => {
+    const kw = keyword.trim().toLowerCase()
+    return db.ids.filter((id) => {
+      const q = db.quests[id]
+      if (category !== ALL && q.category !== category) return false
+      if (period !== ALL && q.period !== period) return false
+      if (statusFilter !== ALL && status[id] !== statusFilter) return false
+      if (!kw) return true
+      return searchIndex[id]?.includes(kw)
+    })
+  }, [db, keyword, searchIndex, category, period, statusFilter, status])
+
+  const onScroll = useCallback((e) => {
+    setScrollTop(e.currentTarget.scrollTop)
+    setViewportH(e.currentTarget.clientHeight)
+  }, [])
+
+  const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
+  const end = Math.min(visibleIds.length, Math.ceil((scrollTop + viewportH) / ROW_HEIGHT) + OVERSCAN)
+  const slice = visibleIds.slice(start, end)
+  const quest = selected != null ? db.quests[selected] : null
+
+  const chip = (label, value, current, setter, key) => (
+    <Chip key={key ?? String(value)} $on={current === value} onClick={() => setter(value)}>
+      {label}
+    </Chip>
+  )
+
+  return (
+    <Root>
+      <TopBar>
+        <InputGroup
+          fill
+          small
+          leftIcon="search"
+          placeholder="搜索任务名 / wiki编号 / 说明 / 奖励（如：螺丝）"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          rightElement={
+            keyword ? (
+              <Button minimal small icon="cross" onClick={() => setKeyword('')} />
+            ) : undefined
+          }
+        />
+        <FilterLine>
+          <FilterLabel>类别</FilterLabel>
+          {chip('全部', ALL, category, setCategory, 'cat-all')}
+          {categories.map((c) => chip(c, c, category, setCategory))}
+        </FilterLine>
+        <FilterLine>
+          <FilterLabel>周期</FilterLabel>
+          {chip('全部', ALL, period, setPeriod, 'per-all')}
+          {periods.map((p) => chip(p, p, period, setPeriod))}
+        </FilterLine>
+        <FilterLine>
+          <FilterLabel>状态</FilterLabel>
+          {chip('全部', ALL, statusFilter, setStatusFilter, 'st-all')}
+          {[STATUS.AVAILABLE, STATUS.IN_PROGRESS, STATUS.COMPLETED, STATUS.LOCKED].map((s) =>
+            chip(STATUS_LABEL[s], s, statusFilter, setStatusFilter),
+          )}
+        </FilterLine>
+      </TopBar>
+
+      <Body>
+        <Left>
+          <Counter>
+            {visibleIds.length} 个任务
+            {visibleIds.length !== db.ids.length ? ` / 共 ${db.ids.length}` : ''}
+          </Counter>
+          <ListScroll onScroll={onScroll}>
+            <div style={{ height: visibleIds.length * ROW_HEIGHT, position: 'relative' }}>
+              <div style={{ transform: `translateY(${start * ROW_HEIGHT}px)` }}>
+                {slice.map((id) => {
+                  const q = db.quests[id]
+                  return (
+                    <Row
+                      key={id}
+                      $active={id === selected}
+                      $accent={CAT_COLOR[q.category] ?? 'transparent'}
+                      style={{ height: ROW_HEIGHT }}
+                      onClick={() => setSelected(id)}
+                    >
+                      <WikiId>{q.wikiId || q.id}</WikiId>
+                      <RowName title={q.name}>{q.name}</RowName>
+                      {/* 615/774 是单次，标出来只会是噪音，只显示周期性任务 */}
+                      {q.period !== '单次' && (
+                        <Tag minimal style={{ fontSize: 9, padding: '0 4px' }}>
+                          {q.period}
+                        </Tag>
+                      )}
+                    </Row>
+                  )
+                })}
+              </div>
+            </div>
+          </ListScroll>
+        </Left>
+
+        <Right>
+          {!quest && (
+            <Empty>
+              <Icon icon="flow-branch" size={28} />
+              <div>选择左侧任务，查看完整任务链与奖励</div>
+              <div style={{ fontSize: 11 }}>
+                {db.meta?.questCount} 个任务 ｜ {db.meta?.edges} 条前置关系 ｜ 最长链{' '}
+                {db.meta?.maxDepth} 级
+              </div>
+            </Empty>
+          )}
+
+          {quest && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                <Tag
+                  style={{
+                    background: CAT_COLOR[quest.category] ?? '#666',
+                    color: '#111',
+                    fontWeight: 600,
+                  }}
+                >
+                  {quest.wikiId || quest.id}
+                </Tag>
+                <Tag minimal>{quest.category}</Tag>
+                {quest.period !== '单次' && <Tag minimal>{quest.period}</Tag>}
+                {quest.limited && (
+                  <Tag minimal intent="danger">
+                    期间限定
+                  </Tag>
+                )}
+                <Tag minimal intent={STATUS_INTENT[status[quest.id]] ?? 'none'}>
+                  {STATUS_LABEL[status[quest.id]] ?? '未知'}
+                </Tag>
+              </div>
+
+              <Title>{quest.name}</Title>
+              {quest.nameJa && quest.nameJa !== quest.name && <SubTitle>{quest.nameJa}</SubTitle>}
+
+              <Section>任务说明</Section>
+              <Desc
+                // 说明文本含 <br>，来源为构建期静态数据，非用户输入
+                dangerouslySetInnerHTML={{ __html: quest.desc || '（该任务无说明数据）' }}
+              />
+
+              <Section>奖励</Section>
+              <RewardPanel quest={quest} />
+
+              <Section>任务线</Section>
+              <QuestChain questId={quest.id} status={status} onSelect={setSelected} />
+            </>
+          )}
+        </Right>
+      </Body>
+    </Root>
+  )
+}
+
+export default App

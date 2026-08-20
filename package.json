@@ -1,0 +1,36 @@
+{
+  "name": "poi-plugin-quest-line",
+  "version": "0.1.0",
+  "description": "Quest line (DAG) visualization and structured reward lookup for KanColle",
+  "main": "index.es",
+  "license": "MIT",
+  "author": {
+    "name": "cnxin"
+  },
+  "keywords": [
+    "poi-plugin",
+    "kancolle",
+    "quest"
+  ],
+  "scripts": {
+    "build-data": "node scripts/build-data.mjs",
+    "verify-data": "node scripts/build-data.mjs --verify-only"
+  },
+  "files": [
+    "index.es",
+    "lib/",
+    "redux/",
+    "views/",
+    "assets/",
+    "i18n/",
+    "README.md"
+  ],
+  "poiPlugin": {
+    "title": "任务线",
+    "description": "任务线与奖励查询",
+    "icon": "fa/sitemap",
+    "priority": 3,
+    "i18nDir": "./i18n",
+    "apiVer": {}
+  }
+}
