@@ -18,6 +18,7 @@ import { STATUS } from '../redux/selectors.es'
 
 const Wrap = styled.div`
   font-size: 12px;
+  ${(p) => (p.$fill ? 'display:flex; flex-direction:column; height:100%; min-height:0;' : '')}
 `
 
 const Toolbar = styled.div`
@@ -37,10 +38,12 @@ const Hint = styled.span`
 
 const Canvas = styled.div`
   overflow: auto;
-  max-height: 430px;
+  ${(p) => (p.$fill ? 'flex: 1; min-height: 0;' : 'max-height: 430px;')}
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.16);
+  cursor: ${(p) => (p.$panning ? 'grabbing' : 'grab')};
+  user-select: ${(p) => (p.$panning ? 'none' : 'auto')};
 `
 
 const NodeG = styled.g`
@@ -90,25 +93,36 @@ function edgePath(e) {
 }
 
 const DEFAULT_DEPTH = 2
-const ZOOM_STEPS = [0.5, 0.75, 1]
+const ZOOM_STEPS = [0.5, 0.75, 1, 1.5]
 
-export const QuestChain = ({ questId, status = {}, onSelect }) => {
+export const QuestChain = ({
+  questId,
+  status = {},
+  onSelect,
+  /** 铺满父容器高度（独立任务线页面用） */
+  fill = false,
+  /** 每层最多显示的节点数；独立页面空间大可以放宽 */
+  maxPerLayer,
+  initialDepth = DEFAULT_DEPTH,
+}) => {
   const db = useMemo(() => getDb(), [])
-  const [upDepth, setUpDepth] = useState(DEFAULT_DEPTH)
-  const [downDepth, setDownDepth] = useState(DEFAULT_DEPTH)
+  const [upDepth, setUpDepth] = useState(initialDepth)
+  const [downDepth, setDownDepth] = useState(initialDepth)
   const [expanded, setExpanded] = useState(() => new Set())
   const [hover, setHover] = useState(null)
   const [zoom, setZoom] = useState(null) // null = 自动适应宽度
+  const [panning, setPanning] = useState(false)
   const boxRef = useRef(null)
+  const panRef = useRef(null)
   const [boxW, setBoxW] = useState(0)
 
   // 切换任务时重置视图状态
   useEffect(() => {
-    setUpDepth(DEFAULT_DEPTH)
-    setDownDepth(DEFAULT_DEPTH)
+    setUpDepth(initialDepth)
+    setDownDepth(initialDepth)
     setExpanded(new Set())
     setZoom(null)
-  }, [questId])
+  }, [questId, initialDepth])
 
   // 观测容器宽度以计算自动缩放
   useEffect(() => {
@@ -122,9 +136,42 @@ export const QuestChain = ({ questId, status = {}, onSelect }) => {
     return () => ro.disconnect()
   }, [])
 
+  // 拖动平移：直接改容器滚动位置，比 transform 方案更稳
+  const onMouseDown = useCallback((e) => {
+    // 点在节点上时不启动拖动，避免和点击选择冲突
+    if (e.target.closest && e.target.closest('g[data-node]')) return
+    const el = boxRef.current
+    if (!el) return
+    panRef.current = {
+      x: e.pageX,
+      y: e.pageY,
+      left: el.scrollLeft,
+      top: el.scrollTop,
+    }
+    setPanning(true)
+  }, [])
+
+  useEffect(() => {
+    if (!panning) return undefined
+    const onMove = (e) => {
+      const el = boxRef.current
+      const p = panRef.current
+      if (!el || !p) return
+      el.scrollLeft = p.left - (e.pageX - p.x)
+      el.scrollTop = p.top - (e.pageY - p.y)
+    }
+    const onUp = () => setPanning(false)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [panning])
+
   const layout = useMemo(
-    () => computeChainLayout(questId, { upDepth, downDepth, expanded }),
-    [questId, upDepth, downDepth, expanded],
+    () => computeChainLayout(questId, { upDepth, downDepth, expanded, maxPerLayer }),
+    [questId, upDepth, downDepth, expanded, maxPerLayer],
   )
 
   const toggleLayer = useCallback((key) => {
@@ -151,7 +198,7 @@ export const QuestChain = ({ questId, status = {}, onSelect }) => {
   const isLit = (e) => hover != null && (e.from === hover || e.to === hover)
 
   return (
-    <Wrap>
+    <Wrap $fill={fill}>
       <Toolbar>
         <Button
           small
@@ -172,27 +219,23 @@ export const QuestChain = ({ questId, status = {}, onSelect }) => {
           展开后续
         </Button>
         <ButtonGroup minimal>
-          <Button
-            small
-            active={zoom === null}
-            onClick={() => setZoom(null)}
-            title="自动适应宽度"
-          >
+          <Button small active={zoom === null} onClick={() => setZoom(null)} title="自动适应宽度">
             适应
           </Button>
           {ZOOM_STEPS.map((z) => (
             <Button key={z} small active={zoom === z} onClick={() => setZoom(z)}>
-              {z * 100}%
+              {`${z * 100}%`}
             </Button>
           ))}
         </ButtonGroup>
         <Hint>
           前置 {upCount} ｜ 后续 {downCount}
           {hiddenCount > 0 && ` ｜ 已折叠 ${hiddenCount} 个（点 +N 展开）`}
+          {' ｜ 可拖动画布'}
         </Hint>
       </Toolbar>
 
-      <Canvas ref={boxRef}>
+      <Canvas ref={boxRef} $fill={fill} $panning={panning} onMouseDown={onMouseDown}>
         <svg
           width={width * scale}
           height={height * scale}
@@ -221,6 +264,7 @@ export const QuestChain = ({ questId, status = {}, onSelect }) => {
               return (
                 <NodeG
                   key={n.id}
+                  data-node="1"
                   $focus={n.isFocus}
                   onClick={() => !n.isFocus && onSelect?.(n.id)}
                   onMouseEnter={() => setHover(n.id)}
@@ -253,7 +297,7 @@ export const QuestChain = ({ questId, status = {}, onSelect }) => {
           {/* 每层折叠的「+N」块 */}
           <g>
             {moreChips.map((c) => (
-              <MoreG key={c.key} onClick={() => toggleLayer(c.key)}>
+              <MoreG key={c.key} data-node="1" onClick={() => toggleLayer(c.key)}>
                 <title>{`还有 ${c.count} 个任务，点击展开本层`}</title>
                 <rect
                   x={c.x}

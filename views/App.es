@@ -15,7 +15,8 @@ import { getDb } from '../lib/quest-db.es'
 import { rewardSearchText } from '../lib/reward.es'
 import { questStatusSelector, STATUS } from '../redux/selectors.es'
 import RewardPanel from './RewardPanel.es'
-import QuestChain from './QuestChain.es'
+import QuestNeighbors from './QuestNeighbors.es'
+import ChainPage from './ChainPage.es'
 import RewardLookup from './RewardLookup.es'
 import FleetReqPanel from './FleetReqPanel.es'
 
@@ -196,7 +197,7 @@ const ROW_HEIGHT = 26
 const OVERSCAN = 12
 const ALL = '__all__'
 
-const MODE = { BROWSE: 'browse', REWARD: 'reward' }
+const MODE = { BROWSE: 'browse', CHAIN: 'chain', REWARD: 'reward' }
 
 const ModeTabs = styled.div`
   display: flex;
@@ -285,6 +286,9 @@ export const App = () => {
           <ModeTab $on={mode === MODE.BROWSE} onClick={() => setMode(MODE.BROWSE)}>
             任务浏览
           </ModeTab>
+          <ModeTab $on={mode === MODE.CHAIN} onClick={() => setMode(MODE.CHAIN)}>
+            任务线
+          </ModeTab>
           <ModeTab $on={mode === MODE.REWARD} onClick={() => setMode(MODE.REWARD)}>
             按奖励查任务
           </ModeTab>
@@ -325,6 +329,17 @@ export const App = () => {
           </>
         )}
       </TopBar>
+
+      {mode === MODE.CHAIN && (
+        <Body>
+          <ChainPage
+            questId={selected}
+            status={status}
+            onSelect={setSelected}
+            onBack={() => setMode(MODE.BROWSE)}
+          />
+        </Body>
+      )}
 
       {mode === MODE.REWARD && (
         <Body>
@@ -430,7 +445,15 @@ export const App = () => {
               )}
 
               <Section>任务线</Section>
-              <QuestChain questId={quest.id} status={status} onSelect={setSelected} />
+              <QuestNeighbors
+                quest={quest}
+                status={status}
+                onSelect={setSelected}
+                onOpenChain={(id) => {
+                  setSelected(id)
+                  setMode(MODE.CHAIN)
+                }}
+              />
             </>
           )}
         </Right>
