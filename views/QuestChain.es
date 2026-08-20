@@ -17,7 +17,7 @@ import { computeChainLayout, computeFocusScroll } from '../lib/chain-layout.es'
 import { STATUS } from '../redux/selectors.es'
 
 const Wrap = styled.div`
-  font-size: 12px;
+  font-size: 13.5px;
   min-width: 0;
   ${(p) =>
     p.$fill ? 'display:flex; flex-direction:column; flex:1; height:100%; min-height:0;' : ''}
@@ -32,7 +32,7 @@ const Toolbar = styled.div`
 `
 
 const Hint = styled.span`
-  font-size: 11px;
+  font-size: 12.5px;
   opacity: 0.55;
   flex: 1;
   min-width: 120px;
@@ -84,7 +84,7 @@ const STATUS_STROKE = {
 
 /** 按节点宽度估算可容纳的字符数（中文约 10px/字，留出左右内边距） */
 function fitToWidth(text, nodeWidth) {
-  const max = Math.floor((nodeWidth - 14) / 10)
+  const max = Math.floor((nodeWidth - 16) / 12.5)
   const s = text ?? ''
   return s.length > max ? `${s.slice(0, max - 1)}…` : s
 }
@@ -312,11 +312,11 @@ export const QuestChain = ({
                     strokeWidth={n.isFocus ? 2 : 1}
                     opacity={done ? 0.65 : 1}
                   />
-                  <rect x={n.x} y={n.y} width={3} height={n.h} rx={1.5} fill={cat} />
-                  <text x={n.x + 8} y={n.y + 11} fontSize={9} fill={cat} fontFamily="monospace">
+                  <rect x={n.x} y={n.y} width={4} height={n.h} rx={2} fill={cat} />
+                  <text x={n.x + 9} y={n.y + 13} fontSize={11} fill={cat} fontFamily="monospace">
                     {fitToWidth(q.wikiId || String(q.id), n.w)}
                   </text>
-                  <text x={n.x + 8} y={n.y + 21} fontSize={10} fill="currentColor" opacity={0.85}>
+                  <text x={n.x + 9} y={n.y + 27} fontSize={12.5} fill="currentColor" opacity={0.85}>
                     {fitToWidth(q.name, n.w)}
                   </text>
                 </NodeG>
@@ -341,8 +341,8 @@ export const QuestChain = ({
                 />
                 <text
                   x={c.x + c.w / 2}
-                  y={c.y + 17}
-                  fontSize={11}
+                  y={c.y + 22}
+                  fontSize={12.5}
                   fill="#48aff0"
                   textAnchor="middle"
                 >

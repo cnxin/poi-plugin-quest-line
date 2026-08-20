@@ -315,7 +315,8 @@ function dateKey(s) {
  * 公开源的名字常带 "(月任)"、"【工厂任务】" 等前缀，
  * 而 UI 已有独立的类别/周期徽章，前缀属重复信息。
  */
-const NAME_PREFIX = /^[(（【[]\s*(日任|周任|月任|季任|年任|单次|期间限定任务|期間限定任務|期间限定扩张任务|工厂任务|工廠任務|改装任务|出击任务|演习任务|远征任务|编成任务|补给任务)\s*[)）】\]]\s*/
+const NAME_PREFIX =
+  /^[(（【[]\s*(日任|周任|月任|季任|年任|单次|期间限定任务|期間限定任務|期间限定扩张任务|工厂任务|工廠任務|改装任务|出击任务|演习任务|远征任务|编成任务|补给任务)(\s*[\/／].{0,6}?)?\s*[)）】\]]\s*/
 
 function cleanName(name) {
   let s = (name ?? '').trim()
@@ -396,7 +397,7 @@ function analyzeDepth(quests) {
  * kcQuests:  { "<api_no>": {code, name, desc, rewards, pre: ["A1"]} }
  */
 function mergeRemote(quests, wikiIdx, remote) {
-  const stat = { translated: 0, addedFromRemote: 0, sources: [] }
+  const stat = { translated: 0, addedFromRemote: 0, memo: 0, sources: [] }
 
   for (const [srcName, data] of Object.entries(remote)) {
     if (!data) continue
@@ -415,6 +416,20 @@ function mergeRemote(quests, wikiIdx, remote) {
         if (val.desc && existing.desc === existing.descJa) {
           existing.desc = String(val.desc).trim()
         }
+        // kcQuests 的 memo2 是精确达成条件或补充提示（覆盖 89%），
+        // 例如 B11 的「使用『鸟海』…以及任一高速舰 出击一次」比 desc 精确得多。
+        // 之前只取 desc 导致描述不如 quest-info-2 完整。
+        if (val.memo2 && !existing.memo) {
+          existing.memo = String(val.memo2).trim()
+          stat.memo++
+        }
+        // 若两个源的 desc 不同，保留较详细的那条作为补充
+        if (val.desc) {
+          const d = String(val.desc).trim()
+          if (d && d !== existing.desc && !existing.descAlt && d.length > 8) {
+            existing.descAlt = d
+          }
+        }
         if (!existing.wikiId && val.code) existing.wikiId = String(val.code).trim()
         if (val.rewards && !existing.rewardText) existing.rewardText = String(val.rewards).trim()
       } else {
@@ -428,6 +443,7 @@ function mergeRemote(quests, wikiIdx, remote) {
           prereqWiki: Array.isArray(val.pre) ? val.pre.map(String) : [],
           desc: val.desc ? String(val.desc).trim() : '',
           descJa: '',
+          memo: val.memo2 ? String(val.memo2).trim() : undefined,
           resource: Array.isArray(val.resources) ? val.resources[0] ?? null : null,
           fixedReward: null,
           choiceReward: null,
@@ -485,6 +501,9 @@ async function main() {
   }
   if (mergeStat.translated) {
     console.log(`      套用中文名: ${mergeStat.translated}`)
+  }
+  if (mergeStat.memo) {
+    console.log(`      补充达成条件(memo2): ${mergeStat.memo}`)
   }
 
   // 并入新任务后需重建 wikiID 索引，否则新任务的 wikiID 无法被前置引用解析
@@ -638,6 +657,8 @@ async function main() {
       name: q.name,
       nameJa: q.nameJa || undefined,
       desc: q.desc,
+      descAlt: q.descAlt,
+      memo: q.memo,
       date: q.date || undefined,
       category: q.category,
       period: q.period,

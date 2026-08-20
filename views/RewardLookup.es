@@ -34,7 +34,7 @@ const ItemRow = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 13.5px;
   background: ${(p) => (p.$active ? 'rgba(72,175,240,0.16)' : 'transparent')};
   &:hover {
     background: ${(p) => (p.$active ? 'rgba(72,175,240,0.2)' : 'rgba(255,255,255,0.05)')};
@@ -72,7 +72,7 @@ const QuestHead = styled.div`
 `
 
 const PathLine = styled.div`
-  font-size: 11px;
+  font-size: 12.5px;
   opacity: 0.6;
   margin-top: 5px;
   line-height: 1.7;
@@ -86,17 +86,17 @@ const Empty = styled.div`
   height: 100%;
   opacity: 0.4;
   gap: 8px;
-  font-size: 12px;
+  font-size: 13.5px;
 `
 
 const Head = styled.div`
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   margin-bottom: 8px;
 `
 
 const Sub = styled.div`
-  font-size: 11px;
+  font-size: 12.5px;
   opacity: 0.55;
   margin-bottom: 10px;
 `
@@ -193,7 +193,7 @@ export const RewardLookup = ({ status = {}, onSelectQuest }) => {
                     >
                       {q.wikiId || q.id}
                     </Tag>
-                    <span style={{ fontSize: 12.5 }}>{q.name}</span>
+                    <span style={{ fontSize: 13.5 }}>{q.name}</span>
                     <Tag minimal intent={r.choice ? 'warning' : 'success'} style={{ fontSize: 9 }}>
                       {r.choice ? '选择' : '固定'} x{r.count}
                     </Tag>

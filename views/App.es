@@ -25,7 +25,7 @@ const Root = styled.div`
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  font-size: 12px;
+  font-size: 14px;
 `
 
 const TopBar = styled.div`
@@ -43,10 +43,10 @@ const FilterLine = styled.div`
 `
 
 const FilterLabel = styled.span`
-  font-size: 10px;
+  font-size: 12px;
   opacity: 0.45;
   flex: 0 0 auto;
-  width: 30px;
+  width: 34px;
   letter-spacing: 1px;
 `
 
@@ -54,8 +54,8 @@ const FilterLabel = styled.span`
 const Chip = styled.button`
   border: none;
   border-radius: 3px;
-  padding: 2px 7px;
-  font-size: 11px;
+  padding: 3px 9px;
+  font-size: 13px;
   cursor: pointer;
   background: ${(p) => (p.$on ? 'rgba(72,175,240,0.85)' : 'rgba(255,255,255,0.07)')};
   color: ${(p) => (p.$on ? '#fff' : 'inherit')};
@@ -108,14 +108,14 @@ const Row = styled.div`
 
 const WikiId = styled.span`
   font-family: monospace;
-  font-size: 10px;
-  opacity: 0.55;
+  font-size: 12px;
+  opacity: 0.6;
   flex: 0 0 auto;
-  width: 48px;
+  width: 58px;
 `
 
 const RowName = styled.span`
-  font-size: 12px;
+  font-size: 13.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -123,25 +123,25 @@ const RowName = styled.span`
 `
 
 const Counter = styled.div`
-  font-size: 10px;
+  font-size: 12px;
   opacity: 0.45;
   padding: 3px 8px;
 `
 
 const Title = styled.div`
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   margin: 6px 0 2px;
   line-height: 1.35;
 `
 
 const SubTitle = styled.div`
-  font-size: 11px;
+  font-size: 12.5px;
   opacity: 0.4;
 `
 
 const Section = styled.div`
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   opacity: 0.55;
   margin: 14px 0 6px;
@@ -149,9 +149,32 @@ const Section = styled.div`
 `
 
 const Desc = styled.div`
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.75;
   opacity: 0.9;
+`
+
+const Memo = styled.div`
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-left: 2px solid rgba(72, 175, 240, 0.6);
+  background: rgba(72, 175, 240, 0.07);
+  border-radius: 0 3px 3px 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+`
+
+const MemoLabel = styled.div`
+  font-size: 11.5px;
+  opacity: 0.55;
+  margin-bottom: 3px;
+`
+
+const AltDesc = styled.div`
+  margin-top: 6px;
+  font-size: 12.5px;
+  opacity: 0.5;
+  line-height: 1.6;
 `
 
 const Empty = styled.div`
@@ -162,7 +185,7 @@ const Empty = styled.div`
   height: 100%;
   opacity: 0.4;
   gap: 10px;
-  font-size: 12px;
+  font-size: 13.5px;
 `
 
 /** 类别配色（也用于列表行左侧色条） */
@@ -193,7 +216,7 @@ const STATUS_LABEL = {
   [STATUS.LOCKED]: '未解锁',
 }
 
-const ROW_HEIGHT = 26
+const ROW_HEIGHT = 30
 const OVERSCAN = 12
 const ALL = '__all__'
 
@@ -211,8 +234,8 @@ const ModeTab = styled.button`
   border-bottom: 2px solid ${(p) => (p.$on ? '#48aff0' : 'transparent')};
   color: inherit;
   opacity: ${(p) => (p.$on ? 1 : 0.5)};
-  font-size: 12px;
-  padding: 3px 10px 4px;
+  font-size: 14px;
+  padding: 4px 12px 5px;
   cursor: pointer;
   &:hover {
     opacity: 1;
@@ -298,7 +321,6 @@ export const App = () => {
           <>
             <InputGroup
               fill
-              small
               leftIcon="search"
               placeholder="搜索任务名 / wiki编号 / 说明 / 奖励（如：螺丝）"
               value={keyword}
@@ -377,7 +399,7 @@ export const App = () => {
                       <RowName title={q.name}>{q.name}</RowName>
                       {/* 615/774 是单次，标出来只会是噪音，只显示周期性任务 */}
                       {q.period !== '单次' && (
-                        <Tag minimal style={{ fontSize: 9, padding: '0 4px' }}>
+                        <Tag minimal style={{ fontSize: 11, padding: '1px 5px' }}>
                           {q.period}
                         </Tag>
                       )}
@@ -394,7 +416,7 @@ export const App = () => {
             <Empty>
               <Icon icon="flow-branch" size={28} />
               <div>选择左侧任务，查看完整任务链与奖励</div>
-              <div style={{ fontSize: 11 }}>
+              <div style={{ fontSize: 12.5 }}>
                 {db.meta?.questCount} 个任务 ｜ {db.meta?.edges} 条前置关系 ｜ 最长链{' '}
                 {db.meta?.maxDepth} 级
               </div>
@@ -433,6 +455,17 @@ export const App = () => {
                 // 说明文本含 <br>，来源为构建期静态数据，非用户输入
                 dangerouslySetInnerHTML={{ __html: quest.desc || '（该任务无说明数据）' }}
               />
+              {/* kcQuests 的 memo2：精确达成条件或补充提示，比 desc 更准
+                  （如 B11 的「…出击一次」），覆盖 89% 的任务 */}
+              {quest.memo && (
+                <Memo>
+                  <MemoLabel>达成条件 / 备注</MemoLabel>
+                  <div dangerouslySetInnerHTML={{ __html: quest.memo }} />
+                </Memo>
+              )}
+              {quest.descAlt && quest.descAlt !== quest.desc && (
+                <AltDesc>另一数据源描述：{quest.descAlt}</AltDesc>
+              )}
 
               <Section>奖励</Section>
               <RewardPanel quest={quest} />

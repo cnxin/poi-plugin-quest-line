@@ -15,7 +15,7 @@ const Section = styled.div`
 `
 
 const SectionTitle = styled.div`
-  font-size: 12px;
+  font-size: 13px;
   opacity: 0.7;
   margin-bottom: 4px;
 `
@@ -35,7 +35,7 @@ const ChoiceGroup = styled.div`
 `
 
 const GroupLabel = styled.span`
-  font-size: 11px;
+  font-size: 12.5px;
   opacity: 0.6;
   min-width: 42px;
 `

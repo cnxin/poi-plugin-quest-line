@@ -11,8 +11,8 @@ const Line = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  padding: 3px 0;
+  font-size: 13.5px;
+  padding: 4px 0;
 `
 
 const Desc = styled.span`
@@ -20,7 +20,7 @@ const Desc = styled.span`
 `
 
 const FleetPicker = styled.div`
-  font-size: 11px;
+  font-size: 12.5px;
   opacity: 0.55;
   margin-bottom: 6px;
 `

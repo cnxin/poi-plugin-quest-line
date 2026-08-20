@@ -11,12 +11,12 @@
  */
 import { getDb } from './quest-db.es'
 
-export const NODE_W = 116
-export const NODE_H = 26
+export const NODE_W = 146
+export const NODE_H = 34
 /** 焦点节点加宽，避免最重要的那个名字被截断 */
-export const FOCUS_W = 168
+export const FOCUS_W = 210
 export const GAP_X = 10
-export const GAP_Y = 46
+export const GAP_Y = 58
 export const PAD = 12
 
 /** 每层默认最多显示的节点数。超出部分折叠为「+N」，点击可展开该层。
@@ -149,7 +149,7 @@ export function computeChainLayout(focusId, opts = {}) {
 
   const widthOf = (id) => (id === focusId ? FOCUS_W : NODE_W)
   /** 折叠提示块的宽度 */
-  const MORE_W = 54
+  const MORE_W = 62
   const rowWidth = (layer, li) => {
     const base = layer.reduce((w, id) => w + widthOf(id), 0) + (layer.length - 1) * GAP_X
     return base + (hiddenByRow[li]?.count > 0 ? MORE_W + GAP_X : 0)

@@ -3,10 +3,45 @@
  * 数据由 scripts/build-data.mjs 生成，插件启动时一次性读入。
  */
 import path from 'path'
+import { readOverride } from './data-update.es'
 
 const dataDir = path.join(__dirname, '..', 'assets')
 
 let _db = null
+
+/**
+ * 把在线更新的文本层覆盖到打包数据上。
+ * 只覆盖文本字段——结构化数据（前置关系/奖励对象/编成要求）来自 kanxy，
+ * 是冻结资产，远端源没有等价物，覆盖会破坏一致性。
+ */
+function applyOverride(quests, ids) {
+  const ov = readOverride()
+  if (!ov) return { applied: 0, fetchedAt: 0 }
+  let applied = 0
+  for (const [key, patch] of Object.entries(ov.quests ?? {})) {
+    const q = quests[key]
+    if (!q) continue
+    let touched = false
+    if (patch.name && patch.name !== q.name) {
+      q.name = patch.name
+      touched = true
+    }
+    if (patch.desc && patch.desc !== q.desc) {
+      q.desc = patch.desc
+      touched = true
+    }
+    if (patch.memo && patch.memo !== q.memo) {
+      q.memo = patch.memo
+      touched = true
+    }
+    if (patch.rewardText && !q.rewardText) {
+      q.rewardText = patch.rewardText
+      touched = true
+    }
+    if (touched) applied++
+  }
+  return { applied, fetchedAt: ov.fetchedAt ?? 0 }
+}
 
 function load() {
   if (_db) return _db
@@ -15,10 +50,15 @@ function load() {
   // eslint-disable-next-line global-require
   const req = require(path.join(dataDir, 'requirements.json'))
 
-  const quests = raw.quests
+  // require 会缓存并共享对象，覆盖前先浅拷贝，避免污染模块缓存
+  const quests = {}
+  for (const [k, v] of Object.entries(raw.quests)) quests[k] = { ...v }
+
   const ids = Object.keys(quests)
     .map(Number)
     .sort((a, b) => a - b)
+
+  const override = applyOverride(quests, ids)
 
   // wikiId -> id，便于按 wiki 编号搜索
   const byWiki = {}
@@ -36,8 +76,14 @@ function load() {
     country: req.country,
     rewardNames: req.rewardNames,
     names: req.names ?? {},
+    override,
   }
   return _db
+}
+
+/** 在线更新后调用，使下次 getDb() 重新加载并应用新覆盖 */
+export const invalidateDb = () => {
+  _db = null
 }
 
 export const getDb = () => load()

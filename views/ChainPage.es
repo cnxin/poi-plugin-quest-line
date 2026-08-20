@@ -31,14 +31,14 @@ const Header = styled.div`
 `
 
 const Name = styled.span`
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
 `
 
 const Legend = styled.div`
   display: flex;
   gap: 10px;
-  font-size: 10px;
+  font-size: 12px;
   opacity: 0.5;
   flex: 0 0 auto;
 `

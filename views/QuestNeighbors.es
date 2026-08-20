@@ -14,7 +14,7 @@ const Group = styled.div`
 `
 
 const Label = styled.div`
-  font-size: 11px;
+  font-size: 12.5px;
   opacity: 0.5;
   margin-bottom: 4px;
 `
