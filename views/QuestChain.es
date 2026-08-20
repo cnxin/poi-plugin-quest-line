@@ -1,86 +1,80 @@
 /**
- * 完整任务线视图：以焦点任务为中心，向上展开全部前置层级、向下展开全部后继层级。
+ * 任务链图形化视图：SVG 绘制的分层 DAG。
  *
- * 布局按「链深度」分层（BFS 分层），最长链 26 级，因此：
- *   - 默认只展开上下各 2 层，可逐层「展开更多」
- *   - 焦点任务高亮居中
+ * 布局由 lib/chain-layout.es 计算（纯函数，已单测）。
+ * 焦点任务居中，前置在上、后继在下，点击任意节点可切换焦点。
  */
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import styled from 'styled-components'
-import { Tag, Button, Callout } from '@blueprintjs/core'
+import { Button, Callout } from '@blueprintjs/core'
 import { getDb } from '../lib/quest-db.es'
+import { computeChainLayout } from '../lib/chain-layout.es'
 import { STATUS } from '../redux/selectors.es'
 
-const Wrapper = styled.div`
+const Wrap = styled.div`
   font-size: 12px;
 `
 
-const Layer = styled.div`
+const Toolbar = styled.div`
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 0;
   align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
 `
 
-const LayerLabel = styled.div`
-  font-size: 10px;
-  opacity: 0.5;
-  min-width: 62px;
-  flex: 0 0 auto;
-`
-
-const FocusRow = styled(Layer)`
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  margin: 3px 0;
-  padding: 6px 0;
-`
-
-const Hint = styled.div`
+const Hint = styled.span`
   font-size: 11px;
   opacity: 0.55;
-  margin: 4px 0;
+  flex: 1;
 `
 
-const STATUS_INTENT = {
-  [STATUS.COMPLETED]: 'success',
-  [STATUS.IN_PROGRESS]: 'primary',
-  [STATUS.AVAILABLE]: 'warning',
-  [STATUS.LOCKED]: 'none',
-}
+const Canvas = styled.div`
+  overflow: auto;
+  max-height: 420px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.16);
+`
 
-/**
- * 从起点按方向做 BFS 分层。
- * dir: 'prereqIds'（向上找前置）| 'unlocks'（向下找后继）
- * 返回 [[第1层id...], [第2层id...], ...]
- */
-function bfsLayers(startId, dir, maxLayers, quests) {
-  const layers = []
-  let frontier = [startId]
-  const seen = new Set([startId])
-  for (let i = 0; i < maxLayers; i++) {
-    const next = []
-    for (const id of frontier) {
-      for (const n of quests[id]?.[dir] ?? []) {
-        if (seen.has(n)) continue
-        seen.add(n)
-        next.push(n)
-      }
-    }
-    if (!next.length) break
-    layers.push(next)
-    frontier = next
+const NodeG = styled.g`
+  cursor: ${(p) => (p.$focus ? 'default' : 'pointer')};
+  &:hover rect {
+    stroke-width: 2;
+    filter: brightness(1.25);
   }
-  return layers
+`
+
+const CAT_COLOR = {
+  编成: '#48aff0',
+  出击: '#ff7373',
+  演习: '#3dcc91',
+  远征: '#ffb366',
+  '补给/入渠': '#a3a3a3',
+  工厂: '#c99bf5',
+  改装: '#ffd966',
+  其他: '#8a8a8a',
 }
 
-/** 是否还有更深的层没展开 */
-function hasMore(layers, startId, dir, quests) {
-  const seen = new Set([startId])
-  layers.flat().forEach((i) => seen.add(i))
-  const last = layers[layers.length - 1] ?? [startId]
-  return last.some((id) => (quests[id]?.[dir] ?? []).some((n) => !seen.has(n)))
+/** 状态 -> 节点描边色 */
+const STATUS_STROKE = {
+  [STATUS.COMPLETED]: '#3dcc91',
+  [STATUS.IN_PROGRESS]: '#48aff0',
+  [STATUS.AVAILABLE]: '#ffb366',
+  [STATUS.LOCKED]: 'rgba(255,255,255,0.18)',
+}
+
+/** 按节点宽度估算可容纳的字符数（中文约 10px/字，留出左右内边距） */
+function fitToWidth(text, nodeWidth) {
+  const max = Math.floor((nodeWidth - 14) / 10)
+  const s = text ?? ''
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s
+}
+
+/** 三次贝塞尔曲线，竖直方向出入 */
+function edgePath(e) {
+  const dy = Math.max(14, (e.y2 - e.y1) / 2)
+  return `M${e.x1},${e.y1} C${e.x1},${e.y1 + dy} ${e.x2},${e.y2 - dy} ${e.x2},${e.y2}`
 }
 
 const DEFAULT_DEPTH = 2
@@ -89,101 +83,127 @@ export const QuestChain = ({ questId, status = {}, onSelect }) => {
   const db = useMemo(() => getDb(), [])
   const [upDepth, setUpDepth] = useState(DEFAULT_DEPTH)
   const [downDepth, setDownDepth] = useState(DEFAULT_DEPTH)
+  const [hover, setHover] = useState(null)
 
-  const quests = db.quests
-  const focus = quests[questId]
-
-  // questId 变化时重置展开层数
-  const [lastId, setLastId] = useState(questId)
-  if (lastId !== questId) {
-    setLastId(questId)
+  // 切换任务时重置展开层数
+  useEffect(() => {
     setUpDepth(DEFAULT_DEPTH)
     setDownDepth(DEFAULT_DEPTH)
-  }
+  }, [questId])
 
-  const upLayers = useMemo(
-    () => bfsLayers(questId, 'prereqIds', upDepth, quests),
-    [questId, upDepth, quests],
-  )
-  const downLayers = useMemo(
-    () => bfsLayers(questId, 'unlocks', downDepth, quests),
-    [questId, downDepth, quests],
+  const layout = useMemo(
+    () => computeChainLayout(questId, { upDepth, downDepth }),
+    [questId, upDepth, downDepth],
   )
 
-  if (!focus) return null
+  if (!layout) return null
+  const { nodes, edges, width, height, moreUp, moreDown, upCount, downCount } = layout
 
-  const moreUp = hasMore(upLayers, questId, 'prereqIds', quests)
-  const moreDown = hasMore(downLayers, questId, 'unlocks', quests)
-
-  const totalUp = upLayers.reduce((n, l) => n + l.length, 0)
-  const totalDown = downLayers.reduce((n, l) => n + l.length, 0)
-
-  const renderTag = (id, isFocus = false) => {
-    const q = quests[id]
-    if (!q) return null
-    return (
-      <Tag
-        key={id}
-        minimal={!isFocus}
-        interactive={!isFocus}
-        intent={isFocus ? 'danger' : STATUS_INTENT[status[id]] ?? 'none'}
-        onClick={isFocus ? undefined : () => onSelect?.(id)}
-        title={q.name}
-      >
-        {q.wikiId || q.id} {q.name}
-      </Tag>
-    )
-  }
-
-  if (!totalUp && !totalDown) {
+  if (nodes.length === 1) {
     return <Callout icon="info-sign">该任务是独立任务，无前置也无后续。</Callout>
   }
 
+  // 高亮：悬停节点及其直接关联的边
+  const isLit = (e) => hover != null && (e.from === hover || e.to === hover)
+
   return (
-    <Wrapper>
-      <Hint>
-        前置 {totalUp} 个 ｜ 后续 {totalDown} 个 ｜ 本任务处于任务链第 {focus.depth + 1} 级
-      </Hint>
+    <Wrap>
+      <Toolbar>
+        <Button
+          small
+          minimal
+          icon="chevron-up"
+          disabled={!moreUp}
+          onClick={() => setUpDepth((d) => d + 2)}
+        >
+          展开前置
+        </Button>
+        <Button
+          small
+          minimal
+          icon="chevron-down"
+          disabled={!moreDown}
+          onClick={() => setDownDepth((d) => d + 2)}
+        >
+          展开后续
+        </Button>
+        <Hint>
+          前置 {upCount} ｜ 后续 {downCount} ｜ 第 {db.quests[questId].depth + 1} 级
+          {(moreUp || moreDown) && ' ｜ 还有未展开的层级'}
+        </Hint>
+      </Toolbar>
 
-      {/* 前置：由远及近，最远的在最上面 */}
-      {[...upLayers].reverse().map((layer, i) => {
-        const level = upLayers.length - i
-        return (
-          <Layer key={`up-${level}`}>
-            <LayerLabel>前置 -{level}</LayerLabel>
-            {layer.map((id) => renderTag(id))}
-          </Layer>
-        )
-      })}
-      {moreUp && (
-        <Layer>
-          <LayerLabel />
-          <Button small minimal icon="chevron-up" onClick={() => setUpDepth((d) => d + 2)}>
-            展开更早的前置
-          </Button>
-        </Layer>
-      )}
+      <Canvas>
+        <svg width={width} height={height} style={{ display: 'block' }}>
+          {/* 连线先画，压在节点下方 */}
+          <g>
+            {edges.map((e) => (
+              <path
+                key={`${e.from}-${e.to}`}
+                d={edgePath(e)}
+                fill="none"
+                stroke={isLit(e) ? '#48aff0' : 'rgba(255,255,255,0.22)'}
+                strokeWidth={isLit(e) ? 1.8 : 1}
+                strokeDasharray={e.skip ? '3,3' : undefined}
+              />
+            ))}
+          </g>
 
-      <FocusRow>
-        <LayerLabel>当前</LayerLabel>
-        {renderTag(questId, true)}
-      </FocusRow>
-
-      {downLayers.map((layer, i) => (
-        <Layer key={`down-${i}`}>
-          <LayerLabel>后续 +{i + 1}</LayerLabel>
-          {layer.map((id) => renderTag(id))}
-        </Layer>
-      ))}
-      {moreDown && (
-        <Layer>
-          <LayerLabel />
-          <Button small minimal icon="chevron-down" onClick={() => setDownDepth((d) => d + 2)}>
-            展开更远的后续
-          </Button>
-        </Layer>
-      )}
-    </Wrapper>
+          <g>
+            {nodes.map((n) => {
+              const q = db.quests[n.id]
+              const cat = CAT_COLOR[q.category] ?? '#8a8a8a'
+              const st = STATUS_STROKE[status[n.id]] ?? 'rgba(255,255,255,0.18)'
+              const done = status[n.id] === STATUS.COMPLETED
+              return (
+                <NodeG
+                  key={n.id}
+                  $focus={n.isFocus}
+                  onClick={() => !n.isFocus && onSelect?.(n.id)}
+                  onMouseEnter={() => setHover(n.id)}
+                  onMouseLeave={() => setHover(null)}
+                >
+                  <title>
+                    {`[${q.wikiId || q.id}] ${q.name}\n${q.category} / ${q.period}`}
+                  </title>
+                  <rect
+                    x={n.x}
+                    y={n.y}
+                    width={n.w}
+                    height={n.h}
+                    rx={3}
+                    fill={n.isFocus ? 'rgba(72,175,240,0.28)' : 'rgba(255,255,255,0.05)'}
+                    stroke={n.isFocus ? '#48aff0' : st}
+                    strokeWidth={n.isFocus ? 2 : 1}
+                    opacity={done ? 0.65 : 1}
+                  />
+                  {/* 左侧类别色条 */}
+                  <rect x={n.x} y={n.y} width={3} height={n.h} rx={1.5} fill={cat} />
+                  <text
+                    x={n.x + 8}
+                    y={n.y + 11}
+                    fontSize={9}
+                    fill={cat}
+                    fontFamily="monospace"
+                  >
+                    {fitToWidth(q.wikiId || String(q.id), n.w)}
+                  </text>
+                  <text
+                    x={n.x + 8}
+                    y={n.y + 21}
+                    fontSize={10}
+                    fill="currentColor"
+                    opacity={0.85}
+                  >
+                    {fitToWidth(q.name, n.w)}
+                  </text>
+                </NodeG>
+              )
+            })}
+          </g>
+        </svg>
+      </Canvas>
+    </Wrap>
   )
 }
 
