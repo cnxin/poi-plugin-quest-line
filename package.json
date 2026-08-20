@@ -7,6 +7,14 @@
   "author": {
     "name": "cnxin"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cnxin/poi-plugin-quest-line.git"
+  },
+  "homepage": "https://github.com/cnxin/poi-plugin-quest-line#readme",
+  "bugs": {
+    "url": "https://github.com/cnxin/poi-plugin-quest-line/issues"
+  },
   "keywords": [
     "poi-plugin",
     "kancolle",
@@ -31,6 +39,7 @@
     "icon": "fa/sitemap",
     "priority": 3,
     "i18nDir": "./i18n",
+    "earliestCompatibleMain": "11.0.0",
     "apiVer": {}
   }
 }

@@ -2,10 +2,26 @@
  * poi-plugin-quest-line 入口
  * 导出规范见 PLAN.md §2.3（实测自 poi-plugin-quest-info-2/src/index.ts）
  */
+import React from 'react'
+import { App } from './views/App.es'
+import { Settings } from './views/Settings.es'
+import ErrorBoundary from './views/ErrorBoundary.es'
+
 export const windowMode = false
 
-export { App as reactClass } from './views/App.es'
-export { Settings as settingsClass } from './views/Settings.es'
+/** 用错误边界包裹，避免单点异常让整个 tab 白屏 */
+export const reactClass = (props) => (
+  <ErrorBoundary>
+    <App {...props} />
+  </ErrorBoundary>
+)
+
+export const settingsClass = (props) => (
+  <ErrorBoundary>
+    <Settings {...props} />
+  </ErrorBoundary>
+)
+
 export { reducer } from './redux/reducer.es'
 
 /**

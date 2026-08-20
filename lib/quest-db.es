@@ -50,6 +50,10 @@ function load() {
   // eslint-disable-next-line global-require
   const req = require(path.join(dataDir, 'requirements.json'))
 
+  if (!raw || typeof raw.quests !== 'object') {
+    throw new Error('assets/quests.json 结构异常，请重装插件或运行 npm run build-data')
+  }
+
   // require 会缓存并共享对象，覆盖前先浅拷贝，避免污染模块缓存
   const quests = {}
   for (const [k, v] of Object.entries(raw.quests)) quests[k] = { ...v }
@@ -58,7 +62,14 @@ function load() {
     .map(Number)
     .sort((a, b) => a - b)
 
-  const override = applyOverride(quests, ids)
+  // 覆盖数据来自网络下载，损坏不应导致插件不可用
+  let override = { applied: 0, fetchedAt: 0 }
+  try {
+    override = applyOverride(quests, ids)
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[poi-plugin-quest-line] 应用在线更新失败，回退到随包数据:', e)
+  }
 
   // wikiId -> id，便于按 wiki 编号搜索
   const byWiki = {}

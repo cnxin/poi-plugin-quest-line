@@ -47,6 +47,14 @@ const Canvas = styled.div`
   background: rgba(0, 0, 0, 0.16);
   cursor: ${(p) => (p.$panning ? 'grabbing' : 'grab')};
   user-select: ${(p) => (p.$panning ? 'none' : 'auto')};
+
+  /* 画布小于视口时居中显示。
+     必须用子元素 margin:auto 而非 justify-content:center ——
+     后者在内容超出容器时会把溢出部分裁在左侧且无法滚动到。 */
+  display: flex;
+  & > svg {
+    margin: auto;
+  }
 `
 
 const NodeG = styled.g`
