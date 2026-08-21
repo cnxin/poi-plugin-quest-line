@@ -5,3 +5,6 @@ npm-debug.log*
 # 构建输入：kanxy 原始数据与游戏主数据，不对外分发
 # 本机备份见 C:\Users\42008\kanxy-analysis\raw-backup
 data/raw/
+
+# codex 生成的中间产物（成品已固化到 assets/extra-goals.json）
+data/goals/

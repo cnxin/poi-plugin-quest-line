@@ -31,7 +31,8 @@
     "views/",
     "assets/",
     "i18n/",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "poiPlugin": {
     "title": "任务线",
