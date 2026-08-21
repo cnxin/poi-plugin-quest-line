@@ -1,6 +1,6 @@
 {
   "name": "poi-plugin-quest-line",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Quest line (DAG) visualization and structured reward lookup for KanColle",
   "main": "index.es",
   "license": "MIT",
