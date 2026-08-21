@@ -10,6 +10,7 @@ import {
   favoritesSelector,
 } from '../redux/selectors.es'
 import { setTitleLang, setFollowGame, clearManualDone } from '../redux/reducer.es'
+import { ItemCounts } from './QuestProgress.es'
 import {
   updateData,
   getLastUpdated,
@@ -146,6 +147,10 @@ export const Settings = () => {
             </Button>
           )}
         </Row>
+      </Callout>
+
+      <Callout title="道具持有量" icon="cube" style={{ marginBottom: 12 }}>
+        <ItemCounts />
       </Callout>
 
       <Callout title="数据源" icon="database">

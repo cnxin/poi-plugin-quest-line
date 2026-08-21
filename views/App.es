@@ -30,6 +30,8 @@ import ChainPage from './ChainPage.es'
 import RewardLookup from './RewardLookup.es'
 import FleetReqPanel from './FleetReqPanel.es'
 import Favorites from './Favorites.es'
+import QuestProgress, { ItemCounts } from './QuestProgress.es'
+import useGoalNotifier from './useGoalNotifier.es'
 
 const Root = styled.div`
   display: flex;
@@ -272,6 +274,9 @@ export const App = () => {
   const lastStarted = useSelector(lastStartedSelector)
   const favorites = useSelector(favoritesSelector)
   const dispatch = useDispatch()
+
+  // 收藏目标从「未解锁」变为「可做/已达成」时提醒
+  useGoalNotifier(lang, true)
 
   // 游戏内接取任务时自动跳转到该任务（对齐 quest-info-2 的行为）
   const lastHandled = useRef(0)
@@ -525,6 +530,9 @@ export const App = () => {
               {quest.descAlt && quest.descAlt !== quest.desc && (
                 <AltDesc>另一数据源描述：{quest.descAlt}</AltDesc>
               )}
+
+              <Section>进度</Section>
+              <QuestProgress quest={quest} />
 
               <Section>奖励</Section>
               <RewardPanel quest={quest} />
