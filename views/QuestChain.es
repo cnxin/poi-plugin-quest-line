@@ -15,6 +15,7 @@ import { Button, ButtonGroup, Callout } from '@blueprintjs/core'
 import { getDb } from '../lib/quest-db.es'
 import { computeChainLayout, computeFocusScroll } from '../lib/chain-layout.es'
 import { STATUS } from '../redux/selectors.es'
+import { primaryName } from '../lib/quest-name.es'
 
 const Wrap = styled.div`
   font-size: 13.5px;
@@ -123,6 +124,8 @@ export const QuestChain = ({
   /** 初始缩放；null = 自动适应宽度。独立页面传 1，因为「适应」在大图上会缩到
    *  0.4~0.5 倍导致字看不清，而该页已支持拖动，用原尺寸配合平移更实用 */
   defaultZoom = null,
+  /** 标题语言由上层传入，组件本身不依赖 redux（便于独立渲染与测试） */
+  lang = 'ja',
 }) => {
   const db = useMemo(() => getDb(), [])
   const [upDepth, setUpDepth] = useState(initialDepth)
@@ -330,7 +333,7 @@ export const QuestChain = ({
                     {fitToWidth(q.wikiId || String(q.id), n.w)}
                   </text>
                   <text x={n.x + 9} y={n.y + 27} fontSize={12.5} fill="currentColor" opacity={0.85}>
-                    {fitToWidth(q.name, n.w)}
+                    {fitToWidth(primaryName(q, lang), n.w)}
                   </text>
                 </NodeG>
               )

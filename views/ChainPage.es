@@ -6,6 +6,7 @@ import React, { useMemo, useState } from 'react'
 import styled from 'styled-components'
 import { Tag, Button, Callout } from '@blueprintjs/core'
 import { getDb } from '../lib/quest-db.es'
+import { primaryName, secondaryName } from '../lib/quest-name.es'
 import QuestChain from './QuestChain.es'
 import QuestPath from './QuestPath.es'
 
@@ -95,7 +96,7 @@ const ViewTab = styled.button`
   }
 `
 
-export const ChainPage = ({ questId, status = {}, onSelect, onBack, initialView }) => {
+export const ChainPage = ({ questId, status = {}, onSelect, onBack, initialView, lang = 'ja' }) => {
   const db = useMemo(() => getDb(), [])
   const [view, setView] = useState(initialView === 'path' ? VIEW.PATH : VIEW.GRAPH)
   const quest = questId != null ? db.quests[questId] : null
@@ -130,7 +131,7 @@ export const ChainPage = ({ questId, status = {}, onSelect, onBack, initialView 
         >
           {quest.wikiId || quest.id}
         </Tag>
-        <Name>{quest.name}</Name>
+        <Name>{primaryName(quest, lang)}</Name>
         <Tag minimal>{quest.category}</Tag>
         {quest.period !== '单次' && <Tag minimal>{quest.period}</Tag>}
         <ViewTabs>
@@ -161,6 +162,7 @@ export const ChainPage = ({ questId, status = {}, onSelect, onBack, initialView 
           maxPerLayer={PAGE_MAX_PER_LAYER}
           initialDepth={3}
           defaultZoom={1}
+          lang={lang}
         />
       ) : (
         <QuestPath targetId={quest.id} onSelect={onSelect} />

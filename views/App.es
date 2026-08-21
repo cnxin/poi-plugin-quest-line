@@ -7,18 +7,29 @@
  *   │ 任务列表     │ 详情（说明/奖励/任务线）    │
  *   └─────────────┴────────────────────────────┘
  */
-import React, { useMemo, useState, useCallback } from 'react'
-import { useSelector } from 'react-redux'
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react'
+import { useSelector, useDispatch } from 'react-redux'
 import styled from 'styled-components'
 import { InputGroup, Tag, Button, Callout, Icon } from '@blueprintjs/core'
 import { getDb } from '../lib/quest-db.es'
 import { rewardSearchText } from '../lib/reward.es'
-import { questStatusSelector, STATUS } from '../redux/selectors.es'
+import {
+  questStatusSelector,
+  STATUS,
+  statusCountsSelector,
+  titleLangSelector,
+  followGameSelector,
+  lastStartedSelector,
+  favoritesSelector,
+} from '../redux/selectors.es'
+import { toggleFavorite } from '../redux/reducer.es'
+import { primaryName, secondaryName, searchableName } from '../lib/quest-name.es'
 import RewardPanel from './RewardPanel.es'
 import QuestNeighbors from './QuestNeighbors.es'
 import ChainPage from './ChainPage.es'
 import RewardLookup from './RewardLookup.es'
 import FleetReqPanel from './FleetReqPanel.es'
+import Favorites from './Favorites.es'
 
 const Root = styled.div`
   display: flex;
@@ -220,7 +231,7 @@ const ROW_HEIGHT = 30
 const OVERSCAN = 12
 const ALL = '__all__'
 
-const MODE = { BROWSE: 'browse', CHAIN: 'chain', REWARD: 'reward' }
+const MODE = { BROWSE: 'browse', CHAIN: 'chain', REWARD: 'reward', FAV: 'fav' }
 
 const ModeTabs = styled.div`
   display: flex;
@@ -255,6 +266,23 @@ export const App = () => {
   const [statusFilter, setStatusFilter] = useState(ALL)
 
   const status = useSelector(questStatusSelector)
+  const counts = useSelector(statusCountsSelector)
+  const lang = useSelector(titleLangSelector)
+  const followGame = useSelector(followGameSelector)
+  const lastStarted = useSelector(lastStartedSelector)
+  const favorites = useSelector(favoritesSelector)
+  const dispatch = useDispatch()
+
+  // 游戏内接取任务时自动跳转到该任务（对齐 quest-info-2 的行为）
+  const lastHandled = useRef(0)
+  useEffect(() => {
+    if (!followGame) return
+    if (!lastStarted.id || lastStarted.at === lastHandled.current) return
+    lastHandled.current = lastStarted.at
+    if (!db.quests[lastStarted.id]) return
+    setSelected(lastStarted.id)
+    setMode(MODE.BROWSE)
+  }, [followGame, lastStarted, db])
 
   const categories = useMemo(
     () => CAT_ORDER.filter((c) => (db.meta?.categories ?? []).includes(c)),
@@ -270,7 +298,7 @@ export const App = () => {
     for (const id of db.ids) {
       const q = db.quests[id]
       idx[id] =
-        `${q.wikiId} ${q.name} ${q.nameJa ?? ''} ${q.desc} ${rewardSearchText(q)}`.toLowerCase()
+        `${q.wikiId} ${searchableName(q)} ${q.desc} ${q.memo ?? ''} ${rewardSearchText(q)}`.toLowerCase()
     }
     return idx
   }, [db])
@@ -316,6 +344,9 @@ export const App = () => {
           <ModeTab $on={mode === MODE.REWARD} onClick={() => setMode(MODE.REWARD)}>
             按奖励查任务
           </ModeTab>
+          <ModeTab $on={mode === MODE.FAV} onClick={() => setMode(MODE.FAV)}>
+            我的目标{favorites.length > 0 ? ` (${favorites.length})` : ''}
+          </ModeTab>
         </ModeTabs>
 
         {mode === MODE.BROWSE && (
@@ -346,7 +377,7 @@ export const App = () => {
               <FilterLabel>状态</FilterLabel>
               {chip('全部', ALL, statusFilter, setStatusFilter, 'st-all')}
               {[STATUS.AVAILABLE, STATUS.IN_PROGRESS, STATUS.COMPLETED, STATUS.LOCKED].map((s) =>
-                chip(STATUS_LABEL[s], s, statusFilter, setStatusFilter),
+                chip(`${STATUS_LABEL[s]} ${counts[s] ?? 0}`, s, statusFilter, setStatusFilter),
               )}
             </FilterLine>
           </>
@@ -361,6 +392,23 @@ export const App = () => {
             onSelect={setSelected}
             onBack={() => setMode(MODE.BROWSE)}
             initialView={chainView}
+            lang={lang}
+          />
+        </Body>
+      )}
+
+      {mode === MODE.FAV && (
+        <Body>
+          <Favorites
+            onSelect={(id) => {
+              setSelected(id)
+              setMode(MODE.BROWSE)
+            }}
+            onOpenPath={(id) => {
+              setSelected(id)
+              setChainView('path')
+              setMode(MODE.CHAIN)
+            }}
           />
         </Body>
       )}
@@ -368,6 +416,7 @@ export const App = () => {
       {mode === MODE.REWARD && (
         <Body>
           <RewardLookup
+            lang={lang}
             status={status}
             onSelectQuest={(id) => {
               setSelected(id)
@@ -398,7 +447,7 @@ export const App = () => {
                       onClick={() => setSelected(id)}
                     >
                       <WikiId>{q.wikiId || q.id}</WikiId>
-                      <RowName title={q.name}>{q.name}</RowName>
+                      <RowName title={primaryName(q, lang)}>{primaryName(q, lang)}</RowName>
                       {/* 615/774 是单次，标出来只会是噪音，只显示周期性任务 */}
                       {q.period !== '单次' && (
                         <Tag minimal style={{ fontSize: 11, padding: '1px 5px' }}>
@@ -447,10 +496,18 @@ export const App = () => {
                 <Tag minimal intent={STATUS_INTENT[status[quest.id]] ?? 'none'}>
                   {STATUS_LABEL[status[quest.id]] ?? '未知'}
                 </Tag>
+                <Button
+                  minimal
+                  small
+                  icon={favorites.includes(quest.id) ? 'star' : 'star-empty'}
+                  intent={favorites.includes(quest.id) ? 'warning' : 'none'}
+                  title={favorites.includes(quest.id) ? '取消收藏' : '收藏为目标，在「我的目标」里跟踪进度'}
+                  onClick={() => dispatch(toggleFavorite(quest.id))}
+                />
               </div>
 
-              <Title>{quest.name}</Title>
-              {quest.nameJa && quest.nameJa !== quest.name && <SubTitle>{quest.nameJa}</SubTitle>}
+              <Title>{primaryName(quest, lang)}</Title>
+              {secondaryName(quest, lang) && <SubTitle>{secondaryName(quest, lang)}</SubTitle>}
 
               <Section>任务说明</Section>
               <Desc
@@ -482,6 +539,7 @@ export const App = () => {
               <Section>任务线</Section>
               <QuestNeighbors
                 quest={quest}
+                lang={lang}
                 status={status}
                 onSelect={setSelected}
                 onOpenChain={(id) => {

@@ -8,6 +8,7 @@ import styled from 'styled-components'
 import { Tag, Button } from '@blueprintjs/core'
 import { getDb } from '../lib/quest-db.es'
 import { STATUS } from '../redux/selectors.es'
+import { primaryName } from '../lib/quest-name.es'
 
 const Group = styled.div`
   margin-bottom: 8px;
@@ -36,7 +37,7 @@ const STATUS_INTENT = {
   [STATUS.LOCKED]: 'none',
 }
 
-export const QuestNeighbors = ({ quest, status = {}, onSelect, onOpenChain, onOpenPath }) => {
+export const QuestNeighbors = ({ quest, status = {}, onSelect, onOpenChain, onOpenPath, lang = 'ja' }) => {
   const db = useMemo(() => getDb(), [])
   if (!quest) return null
 
@@ -50,9 +51,9 @@ export const QuestNeighbors = ({ quest, status = {}, onSelect, onOpenChain, onOp
         interactive
         intent={STATUS_INTENT[status[id]] ?? 'none'}
         onClick={() => onSelect?.(id)}
-        title={q.name}
+        title={primaryName(q, lang)}
       >
-        {q.wikiId || id} {q.name}
+        {q.wikiId || id} {primaryName(q, lang)}
       </Tag>
     )
   }

@@ -72,6 +72,34 @@ export const manualDoneSelector = createSelector(
   (ext) => new Set((ext.manualDone ?? []).map(Number)),
 )
 
+/** 收藏的目标任务 id 列表 */
+export const favoritesSelector = createSelector(
+  [pluginSelector],
+  (ext) => ext.favorites ?? [],
+)
+
+/** 主标题语言偏好 */
+export const titleLangSelector = (state) => pluginSelector(state).titleLang ?? 'ja'
+
+/** 是否跟随游戏内接任务自动跳转 */
+export const followGameSelector = (state) => pluginSelector(state).followGame !== false
+
+/** 游戏内最近接取的任务（含时间戳，便于识别重复接取） */
+export const lastStartedSelector = createSelector(
+  [pluginSelector],
+  (ext) => ({ id: ext.lastStarted ?? null, at: ext.lastStartedAt ?? 0 }),
+)
+
+
+/**
+ * poi 推算的任务子目标进度，如「演习胜利 16/20」。
+ * 数据来自 poi 的 info.quests.records（它按战斗/远征等事件累加）。
+ */
+export const questRecordsSelector = createSelector(
+  [poiQuestsSelector],
+  (q) => q.records ?? {},
+)
+
 /** 进行中任务 id 集合 */
 export const inProgressIdsSelector = createSelector(
   [pluginSelector, poiQuestsSelector],
@@ -127,3 +155,17 @@ export const questProgressSelector = createSelector(
   [poiQuestsSelector, (_, id) => id],
   (poiQuests, id) => poiQuests.records?.[id] ?? null,
 )
+
+/** 各状态的任务数量，用于筛选条上的计数 */
+export const statusCountsSelector = createSelector([questStatusSelector], (status) => {
+  const c = {
+    [STATUS.COMPLETED]: 0,
+    [STATUS.IN_PROGRESS]: 0,
+    [STATUS.AVAILABLE]: 0,
+    [STATUS.LOCKED]: 0,
+  }
+  for (const s of Object.values(status)) {
+    if (c[s] != null) c[s] += 1
+  }
+  return c
+})

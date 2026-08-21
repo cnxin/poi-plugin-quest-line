@@ -21,9 +21,20 @@ function loadPersisted() {
       clearedIds: cfg.get(`${CONFIG_KEY}.clearedIds`, []) || [],
       seenIds: cfg.get(`${CONFIG_KEY}.seenIds`, []) || [],
       manualDone: cfg.get(`${CONFIG_KEY}.manualDone`, []) || [],
+      favorites: cfg.get(`${CONFIG_KEY}.favorites`, []) || [],
+      // 默认用日文原名做主标题：与游戏内显示一致，便于对照
+      titleLang: cfg.get(`${CONFIG_KEY}.titleLang`, 'ja') || 'ja',
+      followGame: cfg.get(`${CONFIG_KEY}.followGame`, true),
     }
   } catch (e) {
-    return { clearedIds: [], seenIds: [], manualDone: [] }
+    return {
+      clearedIds: [],
+      seenIds: [],
+      manualDone: [],
+      favorites: [],
+      titleLang: 'ja',
+      followGame: true,
+    }
   }
 }
 
@@ -56,6 +67,19 @@ const initialState = {
    * 这里让玩家补上推断不到的部分。
    */
   manualDone: persisted.manualDone,
+  /** 收藏的目标任务 id（持久化）。用户可同时盯多条任务线的进展 */
+  favorites: persisted.favorites,
+  /** 主标题语言：'ja' 日文原名（与游戏一致）/ 'zh' 中文 */
+  titleLang: persisted.titleLang,
+  /** 游戏内接任务时是否自动跳转到该任务 */
+  followGame: persisted.followGame,
+  /**
+   * 游戏内最近接取的任务及其时间戳。
+   * 时间戳用于让 UI 区分「同一个任务被再次接取」，
+   * 否则重复接同一任务不会触发跳转。
+   */
+  lastStarted: null,
+  lastStartedAt: 0,
 }
 
 /** 手动标记/取消标记某任务为已完成 */
@@ -67,6 +91,24 @@ export const toggleManualDone = (id) => ({
 /** 清空全部手动标记 */
 export const clearManualDone = () => ({
   type: '@@poi-plugin-quest-line/clearManualDone',
+})
+
+/** 收藏/取消收藏某个目标任务 */
+export const toggleFavorite = (id) => ({
+  type: '@@poi-plugin-quest-line/toggleFavorite',
+  id: Number(id),
+})
+
+/** 切换主标题语言 */
+export const setTitleLang = (lang) => ({
+  type: '@@poi-plugin-quest-line/setTitleLang',
+  lang: lang === 'zh' ? 'zh' : 'ja',
+})
+
+/** 开关「游戏内接任务时自动跳转」 */
+export const setFollowGame = (on) => ({
+  type: '@@poi-plugin-quest-line/setFollowGame',
+  on: !!on,
 })
 
 /** 合并去重，返回新数组；无变化时返回原数组以避免无谓重渲染 */
@@ -139,6 +181,47 @@ export function reducer(state = initialState, action) {
       if (!state.manualDone.length) return state
       persist('manualDone', [])
       return { ...state, manualDone: [] }
+    }
+
+    /**
+     * 游戏内接取任务。这是「点击任务后插件自动跳转」的信号源
+     * —— 游戏点击本身不发请求，但接取会发 api_req_quest/start。
+     */
+    case '@@Response/kcsapi/api_req_quest/start': {
+      const id = Number(action.postBody?.api_quest_id)
+      if (!id) return state
+      const seenIds = mergeIds(state.seenIds, [id])
+      if (seenIds !== state.seenIds) persist('seenIds', seenIds)
+      return {
+        ...state,
+        seenIds,
+        lastStarted: id,
+        lastStartedAt: Date.now(),
+        updatedAt: Date.now(),
+      }
+    }
+
+    case '@@poi-plugin-quest-line/toggleFavorite': {
+      const id = Number(action.id)
+      if (!id) return state
+      const has = state.favorites.includes(id)
+      const favorites = has
+        ? state.favorites.filter((x) => x !== id)
+        : [...state.favorites, id]
+      persist('favorites', favorites)
+      return { ...state, favorites }
+    }
+
+    case '@@poi-plugin-quest-line/setTitleLang': {
+      if (state.titleLang === action.lang) return state
+      persist('titleLang', action.lang)
+      return { ...state, titleLang: action.lang }
+    }
+
+    case '@@poi-plugin-quest-line/setFollowGame': {
+      if (state.followGame === action.on) return state
+      persist('followGame', action.on)
+      return { ...state, followGame: action.on }
     }
 
     default:

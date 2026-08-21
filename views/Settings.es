@@ -1,7 +1,15 @@
 import React, { useMemo, useState, useCallback } from 'react'
+import { useSelector, useDispatch } from 'react-redux'
 import styled from 'styled-components'
 import { Callout, Tag, Button, Switch, Intent } from '@blueprintjs/core'
 import { getDb, invalidateDb } from '../lib/quest-db.es'
+import {
+  titleLangSelector,
+  followGameSelector,
+  manualDoneSelector,
+  favoritesSelector,
+} from '../redux/selectors.es'
+import { setTitleLang, setFollowGame, clearManualDone } from '../redux/reducer.es'
 import {
   updateData,
   getLastUpdated,
@@ -49,6 +57,11 @@ export const Settings = () => {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
   const [auto, setAuto] = useState(() => getAutoUpdate())
+  const dispatch = useDispatch()
+  const lang = useSelector(titleLangSelector)
+  const followGame = useSelector(followGameSelector)
+  const manual = useSelector(manualDoneSelector)
+  const favorites = useSelector(favoritesSelector)
 
   const onUpdate = useCallback(async () => {
     setBusy(true)
@@ -85,6 +98,56 @@ export const Settings = () => {
 
   return (
     <Wrapper>
+      <Callout title="显示与行为" icon="settings" style={{ marginBottom: 12 }}>
+        <Row>
+          <b>任务标题语言</b>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+            <Button
+              small
+              intent={lang === 'ja' ? Intent.PRIMARY : Intent.NONE}
+              onClick={() => dispatch(setTitleLang('ja'))}
+            >
+              日文原名（与游戏一致）
+            </Button>
+            <Button
+              small
+              intent={lang === 'zh' ? Intent.PRIMARY : Intent.NONE}
+              onClick={() => dispatch(setTitleLang('zh'))}
+            >
+              中文译名
+            </Button>
+          </div>
+          <Small style={{ marginTop: 5 }}>
+            另一种语言会作为副标题显示，搜索时两种都能匹配。
+          </Small>
+        </Row>
+
+        <Row style={{ marginTop: 12 }}>
+          <Switch
+            checked={followGame}
+            label="游戏内接取任务时，自动跳转到该任务"
+            onChange={(e) => dispatch(setFollowGame(e.target.checked))}
+            style={{ marginBottom: 0 }}
+          />
+        </Row>
+
+        <Row style={{ marginTop: 10 }}>
+          手动标记为已完成：<Tag minimal>{manual.size}</Tag> 个 ｜ 收藏目标：
+          <Tag minimal>{favorites.length}</Tag> 个
+          {manual.size > 0 && (
+            <Button
+              small
+              minimal
+              icon="trash"
+              style={{ marginLeft: 8 }}
+              onClick={() => dispatch(clearManualDone())}
+            >
+              清空手动标记
+            </Button>
+          )}
+        </Row>
+      </Callout>
+
       <Callout title="数据源" icon="database">
         <Row>
           任务数 <Tag minimal>{meta.questCount}</Tag> ｜ 前置边{' '}

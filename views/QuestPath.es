@@ -14,8 +14,11 @@ import { computeQuestPath } from '../lib/quest-path.es'
 import {
   completedIdsSelector,
   manualDoneSelector,
+  titleLangSelector,
+  questRecordsSelector,
   STATUS,
 } from '../redux/selectors.es'
+import { primaryName } from '../lib/quest-name.es'
 import { toggleManualDone } from '../redux/reducer.es'
 
 const Root = styled.div`
@@ -90,6 +93,8 @@ export const QuestPath = ({ targetId, onSelect }) => {
   const dispatch = useDispatch()
   const completed = useSelector(completedIdsSelector)
   const manual = useSelector(manualDoneSelector)
+  const lang = useSelector(titleLangSelector)
+  const records = useSelector(questRecordsSelector)
   const [shown, setShown] = useState(INITIAL_WAVES)
 
   const path = useMemo(
@@ -113,7 +118,7 @@ export const QuestPath = ({ targetId, onSelect }) => {
     return (
       <Root>
         <Callout intent={Intent.SUCCESS} icon="endorsed" title="目标已达成">
-          「{target.name}」及其全部 {path.totalInChain - 1} 个前置任务都已完成。
+          「{primaryName(target, lang)}」及其全部 {path.totalInChain - 1} 个前置任务都已完成。
         </Callout>
       </Root>
     )
@@ -132,7 +137,7 @@ export const QuestPath = ({ targetId, onSelect }) => {
     <Root>
       <Summary>
         <Stat>
-          距离「{target.name}」还需完成 <b>{path.total}</b> 个任务，
+          距离「{primaryName(target, lang)}」还需完成 <b>{path.total}</b> 个任务，
           分 <b>{path.waves.length}</b> 步
         </Stat>
         <ProgressBar
@@ -170,9 +175,14 @@ export const QuestPath = ({ targetId, onSelect }) => {
                 >
                   {q.wikiId || q.id}
                 </Tag>
-                <QName title={q.name} onClick={() => onSelect?.(id)}>
-                  {q.name}
+                <QName title={primaryName(q, lang)} onClick={() => onSelect?.(id)}>
+                  {primaryName(q, lang)}
                 </QName>
+                {records[id]?.required > 0 && (
+                  <Tag minimal intent={Intent.PRIMARY} style={{ fontSize: 10 }}>
+                    {records[id].count ?? 0}/{records[id].required}
+                  </Tag>
+                )}
                 {q.period !== '单次' && (
                   <Tag minimal style={{ fontSize: 10 }}>
                     {q.period}

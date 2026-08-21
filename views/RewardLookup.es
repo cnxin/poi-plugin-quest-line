@@ -8,6 +8,7 @@ import { InputGroup, Tag, Button, Icon } from '@blueprintjs/core'
 import { getRewardIndex, searchRewards, questsForReward } from '../lib/reward-index.es'
 import { getDb } from '../lib/quest-db.es'
 import { STATUS } from '../redux/selectors.es'
+import { primaryName } from '../lib/quest-name.es'
 
 const Wrap = styled.div`
   display: flex;
@@ -119,7 +120,7 @@ const STATUS_INTENT = {
   [STATUS.LOCKED]: 'none',
 }
 
-export const RewardLookup = ({ status = {}, onSelectQuest }) => {
+export const RewardLookup = ({ status = {}, onSelectQuest, lang = 'ja' }) => {
   const db = useMemo(() => getDb(), [])
   const [kw, setKw] = useState('')
   const [picked, setPicked] = useState(null)
@@ -193,7 +194,7 @@ export const RewardLookup = ({ status = {}, onSelectQuest }) => {
                     >
                       {q.wikiId || q.id}
                     </Tag>
-                    <span style={{ fontSize: 13.5 }}>{q.name}</span>
+                    <span style={{ fontSize: 13.5 }}>{primaryName(q, lang)}</span>
                     <Tag minimal intent={r.choice ? 'warning' : 'success'} style={{ fontSize: 9 }}>
                       {r.choice ? '选择' : '固定'} x{r.count}
                     </Tag>
