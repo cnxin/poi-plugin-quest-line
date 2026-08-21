@@ -245,6 +245,7 @@ const ModeTab = styled.button`
 export const App = () => {
   const db = useMemo(() => getDb(), [])
   const [mode, setMode] = useState(MODE.BROWSE)
+  const [chainView, setChainView] = useState('graph')
   const [keyword, setKeyword] = useState('')
   const [selected, setSelected] = useState(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -359,6 +360,7 @@ export const App = () => {
             status={status}
             onSelect={setSelected}
             onBack={() => setMode(MODE.BROWSE)}
+            initialView={chainView}
           />
         </Body>
       )}
@@ -484,6 +486,12 @@ export const App = () => {
                 onSelect={setSelected}
                 onOpenChain={(id) => {
                   setSelected(id)
+                  setChainView('graph')
+                  setMode(MODE.CHAIN)
+                }}
+                onOpenPath={(id) => {
+                  setSelected(id)
+                  setChainView('path')
                   setMode(MODE.CHAIN)
                 }}
               />

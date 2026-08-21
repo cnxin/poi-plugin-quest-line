@@ -36,7 +36,7 @@ const STATUS_INTENT = {
   [STATUS.LOCKED]: 'none',
 }
 
-export const QuestNeighbors = ({ quest, status = {}, onSelect, onOpenChain }) => {
+export const QuestNeighbors = ({ quest, status = {}, onSelect, onOpenChain, onOpenPath }) => {
   const db = useMemo(() => getDb(), [])
   if (!quest) return null
 
@@ -80,6 +80,16 @@ export const QuestNeighbors = ({ quest, status = {}, onSelect, onOpenChain }) =>
           <Button small icon="flow-branch" onClick={() => onOpenChain?.(quest.id)}>
             查看完整任务线
           </Button>
+          {quest.prereqIds?.length > 0 && (
+            <Button
+              small
+              icon="route"
+              style={{ marginLeft: 6 }}
+              onClick={() => onOpenPath?.(quest.id)}
+            >
+              我要做这个：看达成路径
+            </Button>
+          )}
         </Bar>
       )}
     </div>

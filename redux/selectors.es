@@ -32,17 +32,19 @@ const QuestState = { Unselected: 1, InProgress: 2, Completed: 3 }
 /**
  * 已完成任务集合。
  *
- * 游戏 API **不提供历史完成记录**，只能推断。三个来源：
- *   1. 持久化累积的领奖记录（clearitemget，跨会话保留）
- *   2. questlist 中 api_state === 3（已达成待领取）
- *   3. **祖先反推**：任务能出现在 questlist 里，说明它的前置全部满足，
+ * 游戏 API **不提供历史完成记录**，只能推断。四个来源：
+ *   1. 用户**手动标记**（manualDone）—— 补上推断不到的部分，权威度最高
+ *   2. 持久化累积的领奖记录（clearitemget，跨会话保留）
+ *   3. questlist 中 api_state === 3（已达成待领取）
+ *   4. **祖先反推**：任务能出现在 questlist 里，说明它的前置全部满足，
  *      因此其所有祖先任务必然已完成。这是覆盖历史记录缺口的关键手段
  *      —— 否则 92.6% 的任务会永远显示「未解锁」。
  *
- * 仍是**下界**：从未在本机出现过的分支无法推断。
+ * 仍是**下界**：从未在本机出现过、也未手动标记的分支无法推断。
  */
 export const completedIdsSelector = createSelector([pluginSelector], (ext) => {
   const done = new Set(ext.clearedIds ?? [])
+  for (const id of ext.manualDone ?? []) done.add(Number(id))
   const seenInGame = []
 
   for (const [id, q] of Object.entries(ext.questList ?? {})) {
@@ -57,12 +59,18 @@ export const completedIdsSelector = createSelector([pluginSelector], (ext) => {
   for (const id of seenInGame) {
     for (const anc of collectAncestors(id)) done.add(anc)
   }
-  // 已领奖任务的祖先同样已完成
-  for (const id of ext.clearedIds ?? []) {
+  // 已领奖 / 手动标记的任务，其祖先同样已完成
+  for (const id of [...(ext.clearedIds ?? []), ...(ext.manualDone ?? [])]) {
     for (const anc of collectAncestors(Number(id))) done.add(anc)
   }
   return done
 })
+
+/** 手动标记的集合，供 UI 区分「推断的」与「用户确认的」 */
+export const manualDoneSelector = createSelector(
+  [pluginSelector],
+  (ext) => new Set((ext.manualDone ?? []).map(Number)),
+)
 
 /** 进行中任务 id 集合 */
 export const inProgressIdsSelector = createSelector(

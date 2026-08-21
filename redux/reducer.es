@@ -20,9 +20,10 @@ function loadPersisted() {
     return {
       clearedIds: cfg.get(`${CONFIG_KEY}.clearedIds`, []) || [],
       seenIds: cfg.get(`${CONFIG_KEY}.seenIds`, []) || [],
+      manualDone: cfg.get(`${CONFIG_KEY}.manualDone`, []) || [],
     }
   } catch (e) {
-    return { clearedIds: [], seenIds: [] }
+    return { clearedIds: [], seenIds: [], manualDone: [] }
   }
 }
 
@@ -49,7 +50,24 @@ const initialState = {
   clearedIds: persisted.clearedIds,
   /** 曾在游戏任务列表中出现过的任务 id（持久化累积，用于祖先反推） */
   seenIds: persisted.seenIds,
+  /**
+   * 用户手动标记为已完成的任务 id（持久化）。
+   * 游戏 API 不提供历史完成记录，自动推断只是下界，
+   * 这里让玩家补上推断不到的部分。
+   */
+  manualDone: persisted.manualDone,
 }
+
+/** 手动标记/取消标记某任务为已完成 */
+export const toggleManualDone = (id) => ({
+  type: '@@poi-plugin-quest-line/toggleManualDone',
+  id: Number(id),
+})
+
+/** 清空全部手动标记 */
+export const clearManualDone = () => ({
+  type: '@@poi-plugin-quest-line/clearManualDone',
+})
 
 /** 合并去重，返回新数组；无变化时返回原数组以避免无谓重渲染 */
 function mergeIds(prev, incoming) {
@@ -104,6 +122,23 @@ export function reducer(state = initialState, action) {
       const questList = { ...state.questList }
       delete questList[id]
       return { ...state, questList, updatedAt: Date.now() }
+    }
+
+    case '@@poi-plugin-quest-line/toggleManualDone': {
+      const id = Number(action.id)
+      if (!id) return state
+      const has = state.manualDone.includes(id)
+      const manualDone = has
+        ? state.manualDone.filter((x) => x !== id)
+        : [...state.manualDone, id]
+      persist('manualDone', manualDone)
+      return { ...state, manualDone }
+    }
+
+    case '@@poi-plugin-quest-line/clearManualDone': {
+      if (!state.manualDone.length) return state
+      persist('manualDone', [])
+      return { ...state, manualDone: [] }
     }
 
     default:

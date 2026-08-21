@@ -2,11 +2,12 @@
  * 独立的任务线页面：整页显示 DAG，支持拖动与缩放。
  * 从任务浏览页点「查看完整任务线」进入，焦点跟随当前选中的任务。
  */
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import styled from 'styled-components'
 import { Tag, Button, Callout } from '@blueprintjs/core'
 import { getDb } from '../lib/quest-db.es'
 import QuestChain from './QuestChain.es'
+import QuestPath from './QuestPath.es'
 
 const Root = styled.div`
   display: flex;
@@ -71,8 +72,32 @@ const CAT_COLOR = {
 /** 独立页面空间充裕，每层可以多显示一些 */
 const PAGE_MAX_PER_LAYER = 12
 
-export const ChainPage = ({ questId, status = {}, onSelect, onBack }) => {
+const VIEW = { GRAPH: 'graph', PATH: 'path' }
+
+const ViewTabs = styled.div`
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+`
+
+const ViewTab = styled.button`
+  border: none;
+  background: ${(p) => (p.$on ? 'rgba(72,175,240,0.2)' : 'transparent')};
+  border: 1px solid ${(p) => (p.$on ? 'rgba(72,175,240,0.6)' : 'rgba(255,255,255,0.12)')};
+  border-radius: 3px;
+  color: inherit;
+  opacity: ${(p) => (p.$on ? 1 : 0.6)};
+  font-size: 12.5px;
+  padding: 3px 10px;
+  cursor: pointer;
+  &:hover {
+    opacity: 1;
+  }
+`
+
+export const ChainPage = ({ questId, status = {}, onSelect, onBack, initialView }) => {
   const db = useMemo(() => getDb(), [])
+  const [view, setView] = useState(initialView === 'path' ? VIEW.PATH : VIEW.GRAPH)
   const quest = questId != null ? db.quests[questId] : null
 
   if (!quest) {
@@ -108,24 +133,38 @@ export const ChainPage = ({ questId, status = {}, onSelect, onBack }) => {
         <Name>{quest.name}</Name>
         <Tag minimal>{quest.category}</Tag>
         {quest.period !== '单次' && <Tag minimal>{quest.period}</Tag>}
-        <Legend>
-          <Swatch $color="#3dcc91">已完成</Swatch>
-          <Swatch $color="#48aff0">进行中</Swatch>
-          <Swatch $color="#ffb366">可接取</Swatch>
-          <Swatch $color="rgba(255,255,255,0.3)">未解锁</Swatch>
-          <span>虚线 = 跨层依赖</span>
-        </Legend>
+        <ViewTabs>
+          <ViewTab $on={view === VIEW.GRAPH} onClick={() => setView(VIEW.GRAPH)}>
+            完整任务线
+          </ViewTab>
+          <ViewTab $on={view === VIEW.PATH} onClick={() => setView(VIEW.PATH)}>
+            我的达成路径
+          </ViewTab>
+        </ViewTabs>
+        {view === VIEW.GRAPH && (
+          <Legend>
+            <Swatch $color="#3dcc91">已完成</Swatch>
+            <Swatch $color="#48aff0">进行中</Swatch>
+            <Swatch $color="#ffb366">可接取</Swatch>
+            <Swatch $color="rgba(255,255,255,0.3)">未解锁</Swatch>
+            <span>虚线 = 跨层依赖</span>
+          </Legend>
+        )}
       </Header>
 
-      <QuestChain
-        questId={quest.id}
-        status={status}
-        onSelect={onSelect}
-        fill
-        maxPerLayer={PAGE_MAX_PER_LAYER}
-        initialDepth={3}
-        defaultZoom={1}
-      />
+      {view === VIEW.GRAPH ? (
+        <QuestChain
+          questId={quest.id}
+          status={status}
+          onSelect={onSelect}
+          fill
+          maxPerLayer={PAGE_MAX_PER_LAYER}
+          initialDepth={3}
+          defaultZoom={1}
+        />
+      ) : (
+        <QuestPath targetId={quest.id} onSelect={onSelect} />
+      )}
     </Root>
   )
 }
